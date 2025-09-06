@@ -1,6 +1,6 @@
 <?php
 // upload_mod.php — saves any uploaded file to ./downloads and returns JSON.
-// Place this at /wz4/upload_mod.php (same level as index.php).
+// Place this at /wz4/upload_mod.php (same level as index.html).
 
 header('Content-Type: application/json; charset=utf-8');
 
