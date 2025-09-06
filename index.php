@@ -1,0 +1,651 @@
+<?php
+// index.php — Warzone 2100 stats viewer (structures & weapons) with diffing & filters
+// (This build adds inline PIE thumbnails next to Names in both tabs, replacing the .pie filename badge.)
+
+function rrmdir($dir) {
+  if (!is_dir($dir)) return;
+  $objects = scandir($dir);
+  foreach ($objects as $object) {
+    if ($object === "." || $object === "..") continue;
+    $path = $dir . DIRECTORY_SEPARATOR . $object;
+    if (is_dir($path)) rrmdir($path); else @unlink($path);
+  }
+  @rmdir($dir);
+}
+function safe_extract_zip($zipPath, $destDir) {
+  $zip = new ZipArchive();
+  if ($zip->open($zipPath) !== TRUE) return false;
+  if (!is_dir($destDir)) @mkdir($destDir, 0777, true);
+  for ($i = 0; $i < $zip->numFiles; $i++) {
+    $entry = $zip->getNameIndex($i);
+    $entryPath = str_replace(array('\\', '//'), '/', $entry);
+    if (strpos($entryPath, '../') !== false) continue;
+    $fullPath = $destDir . '/' . $entryPath;
+    if (substr($entry, -1) === '/') {
+      if (!is_dir($fullPath)) @mkdir($fullPath, 0777, true);
+    } else {
+      $dirName = dirname($fullPath);
+      if (!is_dir($dirName)) @mkdir($dirName, 0777, true);
+      $stream = $zip->getStream($entry);
+      if ($stream) {
+        $fp = fopen($fullPath, 'w');
+        while (!feof($stream)) { fwrite($fp, fread($stream, 8192)); }
+        fclose($fp); fclose($stream);
+      }
+    }
+  }
+  $zip->close();
+  return true;
+}
+function read_json_file($path) {
+  if (!file_exists($path)) return null;
+  $txt = file_get_contents($path);
+  if ($txt === false) return null;
+  $data = json_decode($txt, true);
+  if (json_last_error() !== JSON_ERROR_NONE) {
+    return array('__error' => 'JSON decode error: ' . json_last_error_msg(), '__raw' => $txt);
+  }
+  return $data;
+}
+function find_stats_base($root) {
+  if (is_dir($root . '/stats')) return $root . '/stats';
+  $entries = array_values(array_filter(scandir($root), function($x){ return $x !== '.' && $x !== '..'; }));
+  if (count($entries) === 1 && is_dir($root . '/' . $entries[0])) {
+    if (is_dir($root . '/' . $entries[0] . '/stats')) return $root . '/' . $entries[0] . '/stats';
+  }
+  return null;
+}
+function list_files_once($dir) {
+  if (!is_dir($dir)) return array();
+  $out = array();
+  foreach (scandir($dir) as $f) {
+    if ($f === '.' || $f === '..') continue;
+    $p = $dir . DIRECTORY_SEPARATOR . $f;
+    if (is_file($p)) $out[] = $p;
+  }
+  return $out;
+}
+function basename_no_ext_lower($path) { return strtolower(pathinfo($path, PATHINFO_FILENAME)); }
+function find_by_basenames_ci($dir, $names) {
+  $namesLC = array_map('strtolower', $names);
+  foreach (list_files_once($dir) as $p) if (in_array(basename_no_ext_lower($p), $namesLC, true)) return $p; return null;
+}
+function find_by_contains_ci($dir, $needles) {
+  $needlesLC = array_map('strtolower', $needles);
+  foreach (list_files_once($dir) as $p) { $bn = basename_no_ext_lower($p); foreach ($needlesLC as $n) if (strpos($bn, $n) !== false) return $p; } return null;
+}
+function find_first_json_looking($dir) {
+  foreach (list_files_once($dir) as $p) {
+    $head = @file_get_contents($p, false, null, 0, 4096); if ($head === false) continue;
+    $trim = ltrim($head);
+    if ($trim !== '' && ($trim[0] === '{' || $trim[0] === '[')) {
+      $data = json_decode($head, true);
+      if (json_last_error() === JSON_ERROR_NONE) return $p;
+      $txt = @file_get_contents($p);
+      if ($txt !== false) { $data = json_decode($txt, true); if (json_last_error() === JSON_ERROR_NONE) return $p; }
+    }
+  }
+  return null;
+}
+
+$loadSource = 'local'; $uploadError = null; $meta = array('source' => 'local', 'filename' => null); $extractedDir = null;
+if (isset($_GET['load'])) {
+  $exampleKey = $_GET['load']; $examples = array('dumbyhost' => __DIR__ . '/dumbyhostmod.zip');
+  if (isset($examples[$exampleKey]) && file_exists($examples[$exampleKey])) {
+    $path = $examples[$exampleKey]; $meta['filename'] = basename($path); $meta['source'] = 'upload';
+    if (is_dir($path)) { $statsBase = find_stats_base($path); if ($statsBase === null) $uploadError = 'Example folder does not contain a /stats folder.'; else $loadSource = $statsBase; }
+    else { if (!class_exists('ZipArchive')) $uploadError = 'ZipArchive PHP extension is not enabled on this server.';
+      else { $extractedDir = sys_get_temp_dir() . '/wzstats_' . uniqid();
+        if (!safe_extract_zip($path, $extractedDir)) { $uploadError = 'Failed to open/extract the example archive.'; }
+        else { $statsBase = find_stats_base($extractedDir); if ($statsBase === null) $uploadError = 'Example archive does not contain a /stats folder.'; else $loadSource = $statsBase; }
+      }
+    }
+  } else { $uploadError = 'Example not found on server.'; }
+}
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['wzfile'])) {
+  $f = $_FILES['wzfile'];
+  if ($f['error'] === UPLOAD_ERR_OK) {
+    $tmpName = $f['tmp_name']; $name = $f['name']; $meta['filename'] = $name; $meta['source'] = 'upload';
+    if (!class_exists('ZipArchive')) $uploadError = 'ZipArchive PHP extension is not enabled on this server.';
+    else { $extractedDir = sys_get_temp_dir() . '/wzstats_' . uniqid();
+      if (!safe_extract_zip($tmpName, $extractedDir)) $uploadError = 'Failed to open/extract the uploaded file as a zip / wz.';
+      else { $statsBase = find_stats_base($extractedDir); if ($statsBase === null) $uploadError = 'Uploaded archive does not contain a /stats folder.'; else $loadSource = $statsBase; }
+    }
+  } else { $uploadError = 'Upload error code: ' . $f['error']; }
+}
+if ($loadSource === 'local') { $loadSource = find_stats_base(__DIR__); if ($loadSource === null) $loadSource = null; }
+
+$structures = null; $weapons = null; $structureFile = null; $weaponsFile = null;
+if ($loadSource) {
+  $structureFile = find_by_basenames_ci($loadSource, array('structure','structures'));
+  $weaponsFile   = find_by_basenames_ci($loadSource, array('weapons','weampons','weapon'));
+  if (!$structureFile) $structureFile = find_by_contains_ci($loadSource, array('struct'));
+  if (!$weaponsFile)   $weaponsFile   = find_by_contains_ci($loadSource, array('weapon','weampon','weap'));
+  if (!$structureFile) $structureFile = find_first_json_looking($loadSource);
+  if (!$weaponsFile) {
+    $cand = find_first_json_looking($loadSource);
+    if ($cand && $structureFile && realpath($cand) === realpath($structureFile)) {
+      $all = list_files_once($loadSource);
+      foreach ($all as $p) {
+        if (realpath($p) === realpath($structureFile)) continue;
+        $head = @file_get_contents($p, false, null, 0, 4096); if ($head === false) continue;
+        $trim = ltrim($head);
+        if ($trim !== '' && ($trim[0] === '{' || $trim[0] === '[')) {
+          $dataTest = json_decode($head, true);
+          if (json_last_error() === JSON_ERROR_NONE) { $cand = $p; break; }
+          $txt = @file_get_contents($p);
+          if ($txt !== false) { $dataTest = json_decode($txt, true); if (json_last_error() === JSON_ERROR_NONE) { $cand = $p; break; } }
+        }
+      }
+    }
+    $weaponsFile = $cand;
+  }
+  if ($structureFile) $structures = read_json_file($structureFile);
+  if ($weaponsFile)   $weapons   = read_json_file($weaponsFile);
+}
+
+$baselineBase = find_stats_base(__DIR__);
+$baselineStructures = null; $baselineWeapons = null; $baselineStructureFile = null; $baselineWeaponsFile = null;
+if ($baselineBase) {
+  $baselineStructureFile = find_by_basenames_ci($baselineBase, array('structure','structures'));
+  $baselineWeaponsFile   = find_by_basenames_ci($baselineBase, array('weapons','weampons','weapon'));
+  if (!$baselineStructureFile) $baselineStructureFile = find_by_contains_ci($baselineBase, array('struct'));
+  if (!$baselineWeaponsFile)   $baselineWeaponsFile   = find_by_contains_ci($baselineBase, array('weapon','weampon','weap'));
+  if (!$baselineStructureFile) $baselineStructureFile = find_first_json_looking($baselineBase);
+  if (!$baselineWeaponsFile) {
+    $cand = find_first_json_looking($baselineBase);
+    if ($cand && $baselineStructureFile && realpath($cand) === realpath($baselineStructureFile)) {
+      $all = list_files_once($baselineBase);
+      foreach ($all as $p) {
+        if (realpath($p) === realpath($baselineStructureFile)) continue;
+        $head = @file_get_contents($p, false, null, 0, 4096); if ($head === false) continue;
+        $trim = ltrim($head);
+        if ($trim !== '' && ($trim[0] === '{' || $trim[0] === '[')) {
+          $dataTest = json_decode($head, true);
+          if (json_last_error() === JSON_ERROR_NONE) { $cand = $p; break; }
+          $txt = @file_get_contents($p);
+          if ($txt !== false) { $dataTest = json_decode($txt, true); if (json_last_error() === JSON_ERROR_NONE) { $cand = $p; break; } }
+        }
+      }
+    }
+    $baselineWeaponsFile = $cand;
+  }
+  if ($baselineStructureFile) $baselineStructures = read_json_file($baselineStructureFile);
+  if ($baselineWeaponsFile)   $baselineWeapons   = read_json_file($baselineWeaponsFile);
+}
+
+register_shutdown_function(function() use ($extractedDir) { if ($extractedDir && is_dir($extractedDir)) rrmdir($extractedDir); });
+
+$bootstrap = array(
+  'meta' => $meta,
+  'base' => $loadSource,
+  'structures' => $structures,
+  'weapons' => $weapons,
+  'files' => array('structures' => $structureFile, 'weapons' => $weaponsFile),
+  'baseline' => array(
+    'base' => $baselineBase,
+    'structures' => $baselineStructures,
+    'weapons' => $baselineWeapons,
+    'files' => array('structures' => $baselineStructureFile, 'weapons' => $baselineWeaponsFile),
+  ),
+);
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>WZ Stats Viewer — structures & weapons</title>
+<style>
+:root{ --bg:#0f1720; --panel:#151e28; --fg:#e6eef7; --muted:#93a6bb; --accent:#4da3ff; --border:#263445; --ok:#2ecc71; --warn:#f1c40f; --bad:#e74c3c; }
+*{ box-sizing: border-box; }
+html,body{ margin:0; padding:0; height:100%; background:var(--bg); color:var(--fg); font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; }
+header{ position:sticky; top:0; background:var(--panel); border-bottom:1px solid var(--border); padding:10px 12px; z-index:10; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+h1{ margin:0; font-size:18px; font-weight:600; letter-spacing:.2px; }
+.badge{ font-size:12px; padding:4px 8px; background:#1f2a36; border:1px solid var(--border); color:#93a6bb; border-radius:999px; }
+.container{ padding:16px; width: 100%; margin: 0 auto; }
+.toolbar{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+input[type="text"]{ background:#0e141c; color:var(--fg); border:1px solid var(--border); border-radius:8px; padding:10px 12px; width:260px; }
+button,.btn{ background:var(--accent); border:none; color:#021423; padding:10px 14px; border-radius:10px; cursor:pointer; font-weight:600; }
+button.secondary{ background:#1f2a36; color:var(--fg); border:1px solid var(--border); }
+.secondary.active{ background:var(--accent); color:#04111e; border-color:transparent; }
+button:disabled{ opacity:.5; cursor:not-allowed; }
+.tabbar{ display:flex; gap:8px; margin:12px 0; }
+.tab{ padding:8px 12px; border-radius:999px; border:1px solid var(--border); cursor:pointer; }
+.tab.active{ background:var(--accent); color:#04111e; border-color:transparent; }
+.panel{ background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:12px; }
+.small{ font-size:12px; color:var(--muted); }
+table{ width:100%; border-collapse:collapse; table-layout:auto; }
+th, td{ padding:8px 10px; border-bottom:1px solid var(--border); white-space:nowrap; overflow:visible; text-overflow:clip; text-align:left !important; }
+th{ position:sticky; top:0; background:var(--panel); cursor:pointer; user-select:none; text-align:left !important; }
+tr:nth-child(odd) td{ background: #121b26; } /* zebra */
+tr:hover td{ background:#0e141c; }
+.controls{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin: 8px 0 12px 0; }
+.kv{ display:flex; gap:6px; align-items:center; }
+.bad{ color: var(--bad); }
+.warn{ color: var(--warn); }
+.ok{ color: var(--ok); }
+.hidden{ display:none !important; }
+
+.changedCell .oldVal{ color: var(--muted); }
+.changedCell .arrow{ opacity:.8; padding:0 4px; }
+.changedCell .newVal{ font-weight:600; }
+
+/* PIE thumbnail next to names */
+.pie-thumbs{ display:inline-flex; gap:6px; align-items:center; margin-left:10px; vertical-align:middle; }
+.pie-thumb{ width:70px; height:32px; border-radius:6px; background:#0a0f14; border:1px solid var(--border); display:inline-block; }
+.pie-thumb[aria-busy="true"]{ opacity:.6; }
+</style>
+
+</head>
+<body>
+
+<script type="module">
+  import "./js/three.module.js";
+  import "./js/pie.js";
+  import "./js/piePreview.js";
+  import "./js/piePreview-init.js";
+</script>
+
+<header>
+  <h1>WZ Stats Viewer</h1>
+  <span class="badge" id="sourceBadge">Source: <?php
+    if ($bootstrap['meta']['source'] === 'upload') {
+      echo 'uploaded archive';
+      if ($bootstrap['meta']['filename']) echo ' ('.htmlspecialchars($bootstrap['meta']['filename']).')';
+    } else if ($bootstrap['base']) {
+      echo 'local ./stats';
+    } else {
+      echo 'no stats found yet';
+    }
+  ?></span>
+  <form method="post" enctype="multipart/form-data" id="uploadForm" style="display:flex; gap:8px; align-items:center;">
+  <?php if (($bootstrap['meta']['source'] ?? '') === 'upload') { ?>
+    <button type="button" class="tab" id="resetBtn">Reset</button>
+  <?php } else { ?>
+    <label class="tab" for="wzfile">Upload mod</label>
+    <input id="wzfile" name="wzfile" type="file" style="display:none" onchange="this.form.submit();" />
+  <?php } ?>
+  <span class="small">Mods located: \\Warzone 2100\\mods\\downloads</span>
+  <?php if (!empty($uploadError)) { echo '<span class="bad">'.htmlspecialchars($uploadError).'</span>'; } ?>
+</form>
+</header>
+
+<div class="container">
+  <div class="panel">
+    <div class="toolbar">
+      <div class="tabbar">
+        <div class="tab active" data-tab="structures">Structures</div>
+        <div class="tab" data-tab="weapons">Weapons</div>
+      </div>
+      <div class="controls">
+        <input type="text" id="searchInput" placeholder="Search…" />
+        <button class="secondary" id="clearBtn">Clear</button>
+        <button class="secondary" id="filtersBtn">Show filters</button>
+        <div class="tab" id="showNewBtn">Show new</div>
+        <div class="tab" id="showChangedBtn">Show changes</div>
+        <div class="kv small"><span>Rows:</span> <span id="rowCount">0</span></div>
+      </div>
+    </div>
+
+    <div id="filtersPanel" class="panel hidden" style="margin:8px 0;">
+      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+        <strong>Filters</strong>
+        <button class="secondary" id="filtersSelectAll">All</button>
+        <button class="secondary" id="filtersSelectDefault">Default</button>
+        <button class="secondary" id="filtersChangedOnly">Only changed fields</button>
+        <span class="small" id="filtersCounter"></span>
+      </div>
+      <div id="filtersList" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap:8px; margin-top:8px;"></div>
+    </div>
+
+    <div id="tableWrap" class="panel" style="padding:0; overflow:auto; max-height:80vh;">
+      <table id="dataTable">
+        <thead id="thead"></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+<script>
+  const pieOverlay = null;
+  function resolvePieUrl(filename){
+    const roots = ['components','structs','structures','effects','models','base'];
+    for (const r of roots){ return `${r}/${filename}`; }
+    return filename;
+  }
+  async function renderPieToCanvas(canvas, pieFile){
+    const url = resolvePieUrl(pieFile);
+    try {
+      if (window.WZPIE && typeof WZPIE.renderToCanvas === 'function') {
+        await WZPIE.renderToCanvas(canvas, url, { background:'#0a0f14' });
+        return true;
+      }
+      if (window.renderPieModel && typeof window.renderPieModel === 'function') {
+        await window.renderPieModel(canvas, url);
+        return true;
+      }
+      if (window.PIELoader && typeof window.PIELoader.render === 'function') {
+        await window.PIELoader.render(canvas, url);
+        return true;
+      }
+    } catch(e){ console.error('PIE render error:', e); }
+    const ctx = canvas.getContext('2d'); ctx.fillStyle = '#0a0f14'; ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle = '#9fc3ff'; ctx.font = '11px system-ui, sans-serif'; ctx.fillText('PIE?', 6, 18);
+    return false;
+  }
+
+const BOOTSTRAP = <?php echo json_encode($bootstrap, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>;
+
+(function(){
+  function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;').replace(/'/g,'&#39;'); }
+  const isNumber = (v) => typeof v === 'number' || (typeof v === 'string' && v.trim() !== '' && !isNaN(Number(v)));
+  const toCell = (v) => (v===null||v===undefined) ? '' : (typeof v === 'object' ? JSON.stringify(v) : String(v));
+  const compareVals = (a, b) => { const an = isNumber(a), bn = isNumber(b); if (an && bn) return Number(a)-Number(b); a = String(a).toLowerCase(); b = String(b).toLowerCase(); return a<b?-1:a>b?1:0; };
+  const PRETTY_LABELS = { buildpoints:'Build time', buildpower:'Price', damage:'DMG', hitpoints:'HP', longrange:'Range', weaponclass:'Type' };
+  const pretty = (k) => PRETTY_LABELS[k] || k;
+
+  function isPlainObject(o){ return o && typeof o === 'object' && !Array.isArray(o); }
+  function deepSort(v){ if (Array.isArray(v)) return v.map(deepSort); if (isPlainObject(v)) { const o={}; for (const k of Object.keys(v).sort()) o[k]=deepSort(v[k]); return o; } return v; }
+  function stableStringify(v){ return JSON.stringify(deepSort(v)); }
+  function toMap(rows){ const m=new Map(); (Array.isArray(rows)?rows:[]).forEach(r=>{ const id=(r && (r.id!==undefined && r.id!==null))?String(r.id):null; if(!id)return; const {id:_drop,...rest}=r; m.set(id,rest); }); return m; }
+  function diffRows(activeRows, baselineRows){
+    const A = toMap(activeRows), B = toMap(baselineRows); const out = [];
+    for (const [id, aObj] of A.entries()){
+      const bObj = B.get(id);
+      if (bObj === undefined) out.push({ id, ...aObj, __delta:'new' });
+      else {
+        const sa = stableStringify(aObj), sb = stableStringify(bObj);
+        if (sa !== sb) {
+          const keys = new Set([...Object.keys(aObj), ...Object.keys(bObj)]);
+          const changed = []; const oldmap = {};
+          for (const k of keys){ const va=aObj[k], vb=bObj[k]; if (stableStringify(va) !== stableStringify(vb)) { changed.push(k); oldmap[k]=vb; } }
+          out.push({ id, ...aObj, __delta:'changed', __changed:changed, __old:oldmap });
+        }
+      }
+    }
+    return out;
+  }
+
+  function unwrapByKind(data, kind){
+    if (!data || typeof data !== 'object') return data;
+    const candidates = kind === 'structures'
+      ? ['structures','structure','STRUCTURES','STRUCTURE','StructureStats','structs']
+      : ['weapons','weampons','weapon','WEAPONS','WEAPON','WeaponStats','weaps'];
+    for (const k of candidates) if (Object.prototype.hasOwnProperty.call(data, k)) return data[k];
+    return data;
+  }
+  function normalizeRows(data, kind){
+    if (!data) return [];
+    if (data && typeof data === 'object' && data.__error) return [];
+    data = unwrapByKind(data, kind);
+    if (Array.isArray(data)) return data.map((r,idx)=> (r && typeof r==='object' && !Array.isArray(r)) ? r : { id: idx, value: r });
+    if (data && typeof data === 'object') return Object.entries(data).map(([k,v]) => (v && typeof v==='object' && !Array.isArray(v)) ? Object.assign({id:k}, v) : { id:k, value:v });
+    return [];
+  }
+
+  let columnLookup = {};
+  function unionKeys(rows){ if (!Array.isArray(rows)) return []; const set = new Set(); rows.forEach(r => { if (r && typeof r === 'object') Object.keys(r).forEach(k => set.add(k)); }); return Array.from(set); }
+  function pickPrefer(keys, preferred){ const set = new Set(keys); const out = []; (preferred||[]).forEach(k => { if (set.has(k)) { out.push(k); set.delete(k); } }); return out.concat(Array.from(set).sort()); }
+
+  const tabs = { structures: normalizeRows(BOOTSTRAP.structures, 'structures'), weapons: normalizeRows(BOOTSTRAP.weapons, 'weapons') };
+  const baseline = { structures: normalizeRows(BOOTSTRAP.baseline && BOOTSTRAP.baseline.structures, 'structures'), weapons: normalizeRows(BOOTSTRAP.baseline && BOOTSTRAP.baseline.weapons, 'weapons') };
+  const diffs = { structures: diffRows(tabs.structures, baseline.structures), weapons: diffRows(tabs.weapons, baseline.weapons) };
+
+  const preferCols = {
+    structures: ['id','name','type','buildPoints','hitpoints','armour','thermal','strength','buildPower','weapons','longrange','damage'],
+    weapons: ['id','name','Damage','Range','ReloadTime','Class','model','baseModel']
+  };
+
+  let activeTab = 'structures';
+  let showNew = false, showChanged = false;
+  function diffMode(){ return !!(showNew || showChanged); }
+  function getActiveRows(){
+    if (diffMode()) {
+      const base = diffs[activeTab] || [];
+      return base.filter(r => ((showNew && r.__delta === 'new') || (showChanged && r.__delta === 'changed')));
+    }
+    return tabs[activeTab] || [];
+  }
+
+  let sortCol = null, sortDir = 1, visibleCols = [];
+  const thead = document.getElementById('thead');
+  const tbody = document.getElementById('tbody');
+  const rowCount = document.getElementById('rowCount');
+  const searchInput = document.getElementById('searchInput');
+  const clearBtn = document.getElementById('clearBtn');
+  const filtersBtn = document.getElementById('filtersBtn');
+  const filtersPanel = document.getElementById('filtersPanel');
+  const filtersList = document.getElementById('filtersList');
+  const filtersSelectAll = document.getElementById('filtersSelectAll');
+  const filtersSelectDefault = document.getElementById('filtersSelectDefault');
+  const filtersChangedOnly = document.getElementById('filtersChangedOnly');
+  const showNewBtn = document.getElementById('showNewBtn');
+  const showChangedBtn = document.getElementById('showChangedBtn');
+
+  const STORAGE_KEY = 'wzStatsCols_v3';
+  let columnSelections = {}; try { const saved = localStorage.getItem(STORAGE_KEY); if (saved) columnSelections = JSON.parse(saved) || {}; } catch(e){}
+  function saveSelections(){ try { localStorage.setItem(STORAGE_KEY, JSON.stringify(columnSelections)); } catch(e){} }
+  function selectionKey(){ return activeTab + (diffMode() ? ':diff' : ':all'); }
+
+  function currentAllCols(){
+    const rows = getActiveRows();
+    const keys = unionKeys(rows);
+    const prefer = [].concat(preferCols[activeTab] || []);
+    let ordered = pickPrefer(keys, prefer);
+    ordered = ordered.filter(k => { const kk = String(k).toLowerCase(); return kk !== '__delta' && kk !== '__changed' && kk !== '__old'; });
+    columnLookup = {}; const out = [];
+    for (const k of ordered){ const canon = String(k).toLowerCase(); if (!out.includes(canon)) { out.push(canon); columnLookup[canon] = [k]; } }
+    return out;
+  }
+
+  const USER_DEFAULTS_KEY = 'wzStatsUserDefaultCols_v1'; let userDefaultCols = {}; try { const u = localStorage.getItem(USER_DEFAULTS_KEY); if (u) userDefaultCols = JSON.parse(u) || {}; } catch(e){}
+  const defaultCols = { structures: ['name','type','buildpoints','hitpoints','armour','thermal','strength','damage','longrange','buildpower'], weapons: ['name','buildpoints','buildpower','damage','hitpoints','longrange','reloadtime','weaponclass'] };
+  function getDefaultCols(){ const all = currentAllCols(); const user = userDefaultCols[activeTab]; const wanted = (Array.isArray(user) && user.length ? user : (defaultCols[activeTab] || all)); return wanted.filter(c => all.includes(c)); }
+
+  function getRaw(row, label){
+    const list = (columnLookup[label] || [label]);
+    for (const key of list){ if (row && row[key] !== undefined) return row[key]; }
+    return row ? row[label] : undefined;
+  }
+  function getOldRaw(row, label){ if (!row || !row.__old) return undefined; const list = (columnLookup[label] || [label]); for (const key of list){ if (Object.prototype.hasOwnProperty.call(row.__old, key)) return row.__old[key]; } return row.__old[label]; }
+
+  // Extract pie filenames from common fields on a row
+  function extractPieNames(row){
+    if (!row || typeof row !== 'object') return [];
+    const fields = ['baseModel','basemodel','structureModel','structuremodel','model','modelFile','weaponsModel','turretModel'];
+    const out = [];
+    for (const f of fields){
+      if (row[f] === undefined) continue;
+      const v = row[f];
+      const add = (s) => {
+        if (!s) return;
+        let name = String(s).trim().replace(/^\[|\]$/g,'');
+        name = name.replace(/^\[\"']+|[\\"']+$/g,'');
+        const parts = name.split(/[\\/]/);
+        const last = parts[parts.length-1];
+        if (/\.pie$/i.test(last) && !out.includes(last)) out.push(last);
+      };
+      if (Array.isArray(v)) v.forEach(add);
+      else if (typeof v === 'string') {
+        try { const arr = JSON.parse(v); if (Array.isArray(arr)) arr.forEach(add); else add(v); }
+        catch(e){ add(v); }
+      } else { add(v); }
+    }
+    return out;
+  }
+
+  function buildCols(){
+    const allCols = currentAllCols();
+    const key = selectionKey();
+    let sel = columnSelections[key];
+    if (!Array.isArray(sel) || !sel.length) sel = getDefaultCols();
+    sel = sel.filter(c => allCols.includes(c));
+    if (!sel.length) sel = getDefaultCols();
+    visibleCols = sel;
+  }
+
+  function filterRows(rows, q){
+    if (!Array.isArray(rows) || !q) return rows || [];
+    const needle = q.toLowerCase();
+    return rows.filter(r => {
+      for (const c of visibleCols) { const v = toCell(getRaw(r,c)).toLowerCase(); if (v.includes(needle)) return true; }
+      return false;
+    });
+  }
+
+  function renderHeader(){
+    thead.innerHTML = '';
+    const tr = document.createElement('tr');
+    visibleCols.forEach((col) => {
+      const th = document.createElement('th');
+      th.textContent = pretty(col);
+      th.dataset.col = col;
+      th.addEventListener('click', () => { if (sortCol === col) sortDir *= -1; else { sortCol = col; sortDir = 1; } renderBody(); });
+      tr.appendChild(th);
+    });
+    thead.appendChild(tr);
+  }
+
+  function renderBody(){
+    const all = getActiveRows();
+    const q = searchInput.value.trim();
+    let rows = filterRows(all, q);
+    if (sortCol) rows = rows.slice().sort((a,b) => compareVals(getRaw(a,sortCol), getRaw(b,sortCol)) * sortDir);
+    tbody.innerHTML = '';
+    const frag = document.createDocumentFragment();
+    const thumbs = []; // canvases to render
+    rows.forEach(r => {
+      const tr = document.createElement('tr');
+      visibleCols.forEach(c => {
+        const td = document.createElement('td');
+        const valRaw = getRaw(r, c);
+        const val = toCell(valRaw);
+        const oldCandidate = getOldRaw(r, c);
+        const isName = c === 'name';
+        if (isName) {
+          // Build name + inline PIE thumbnail (first PIE found)
+          const pies = extractPieNames(r);
+          const label = document.createElement('span');
+          label.textContent = val;
+          td.textContent = '';
+          td.appendChild(label);
+          if (pies.length){
+            const wrap = document.createElement('span');
+            wrap.className = 'pie-thumbs';
+            const canvas = document.createElement('canvas');
+            canvas.width = 140; canvas.height = 64;
+            canvas.className = 'pie-thumb'; canvas.setAttribute('aria-busy','true');
+            canvas.dataset.pie = pies[0];
+            wrap.appendChild(canvas);
+            td.appendChild(wrap);
+            thumbs.push(canvas);
+          }
+        } else if (diffMode() && r.__delta === 'changed' && oldCandidate !== undefined) {
+          const oldVal = toCell(oldCandidate);
+          td.classList.add('changedCell');
+          td.innerHTML = '<span class="oldVal">' + escapeHtml(oldVal) + '</span>' +
+                         '<span class="arrow">→</span>' +
+                         '<span class="newVal">' + escapeHtml(val) + '</span>';
+          td.title = oldVal + ' -> ' + val;
+        } else {
+          td.title = val;
+          td.textContent = val;
+        }
+        tr.appendChild(td);
+      });
+      frag.appendChild(tr);
+    });
+    tbody.appendChild(frag);
+    rowCount.textContent = String(rows.length);
+    // Render queued thumbnails
+    thumbs.forEach(async (cv) => {
+      try {
+        await renderPieToCanvas(cv, cv.dataset.pie);
+      } finally {
+        cv.removeAttribute('aria-busy');
+      }
+    });
+  }
+
+  function switchTab(name){
+    activeTab = name;
+    document.querySelectorAll('.tabbar .tab').forEach(el => el.classList.toggle('active', el.dataset.tab === name));
+    buildCols(); renderHeader(); renderBody(); rebuildFiltersPanel();
+  }
+
+  function rebuildFiltersPanel(){
+    if (!filtersPanel) return;
+    const allCols = currentAllCols();
+    const key = selectionKey();
+    let sel = columnSelections[key]; if (!Array.isArray(sel) || !sel.length) sel = allCols.slice(0);
+    filtersList.innerHTML = '';
+    allCols.forEach(col => {
+      const btn = document.createElement('button');
+      btn.type = 'button'; btn.className = 'filter-chip'; btn.dataset.col = col;
+      const selected = sel.includes(col);
+      if (selected) btn.classList.add('active');
+      btn.innerHTML = `<span class="label">${escapeHtml(pretty(col))}</span>`;
+      btn.addEventListener('click', () => {
+        const key = selectionKey();
+        let cur = columnSelections[key]; if (!Array.isArray(cur)) cur = [];
+        if (btn.classList.contains('active')) { cur = cur.filter(x => x !== col); btn.classList.remove('active'); }
+        else { cur = cur.concat(col); btn.classList.add('active'); }
+        columnSelections[key] = cur; saveSelections(); buildCols(); renderHeader(); renderBody(); rebuildFiltersPanel();
+      });
+      filtersList.appendChild(btn);
+    });
+    if (document.getElementById('filtersCounter')) {
+      const selCount = (columnSelections[key] || allCols).length;
+      document.getElementById('filtersCounter').textContent = `${selCount} / ${allCols.length} selected`;
+    }
+  }
+
+  if (filtersBtn){
+    filtersBtn.addEventListener('click', () => {
+      filtersPanel.classList.toggle('hidden');
+      if (!filtersPanel.classList.contains('hidden')) rebuildFiltersPanel();
+    });
+  }
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && filtersPanel && !filtersPanel.classList.contains('hidden')) filtersPanel.classList.add('hidden'); });
+  filtersSelectAll && filtersSelectAll.addEventListener('click', () => { columnSelections[selectionKey()] = currentAllCols(); saveSelections(); buildCols(); renderHeader(); renderBody(); rebuildFiltersPanel(); });
+  filtersSelectDefault && filtersSelectDefault.addEventListener('click', () => { columnSelections[selectionKey()] = getDefaultCols(); saveSelections(); buildCols(); renderHeader(); renderBody(); rebuildFiltersPanel(); });
+  filtersChangedOnly && filtersChangedOnly.addEventListener('click', () => {
+    const rows = diffs[activeTab] || []; const changed = new Set();
+    rows.forEach(r => (r.__changed || []).forEach(k => changed.add(String(k).toLowerCase())));
+    const base = ['id','name']; const all = currentAllCols();
+    const list = base.concat(Array.from(changed)).filter(c => all.includes(c));
+    columnSelections[selectionKey()] = list.length ? list : base.filter(c => all.includes(c));
+    saveSelections(); buildCols(); renderHeader(); renderBody(); rebuildFiltersPanel();
+  });
+
+  function refreshToggles(){ showNewBtn && showNewBtn.classList.toggle('active', !!showNew); showChangedBtn && showChangedBtn.classList.toggle('active', !!showChanged); }
+  showNewBtn && showNewBtn.addEventListener('click', () => { if (!showNew) { showNew=true; showChanged=false; } else { showNew=false; } refreshToggles(); buildCols(); renderHeader(); renderBody(); });
+  showChangedBtn && showChangedBtn.addEventListener('click', () => { if (!showChanged) { showChanged=true; showNew=false; } else { showChanged=false; } refreshToggles(); buildCols(); renderHeader(); renderBody(); });
+
+  if (BOOTSTRAP && BOOTSTRAP.meta && BOOTSTRAP.meta.source === 'upload' && (baseline.structures.length || baseline.weapons.length)) { showNew = true; showChanged = false; }
+  refreshToggles();
+
+  document.querySelectorAll('.tabbar .tab').forEach(el => el.addEventListener('click', () => switchTab(el.dataset.tab)));
+  searchInput.addEventListener('input', renderBody);
+  clearBtn.addEventListener('click', () => { searchInput.value=''; renderBody(); });
+
+  switchTab('structures');
+})();
+</script>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  var resetBtn = document.getElementById("resetBtn");
+  if (resetBtn) {
+    resetBtn.addEventListener("click", function() {
+      const url = new URL(window.location.href);
+      url.search = "";
+      window.location.href = url.pathname;
+    });
+  }
+});
+</script>
+
+</body>
+</html>
