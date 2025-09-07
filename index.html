@@ -203,7 +203,22 @@ tr:hover td{ background:#0e141c; }
     }
     const structures = await loadJSON("stats/structure.json");
     const weapons = await loadJSON("stats/weapons.json");
-    return { meta:{source:"local", filename:null}, base:"stats", structures, weapons, files:{structures:"stats/structure.json", weapons:"stats/weapons.json"}, baseline:{ base:"stats", structures, weapons, files:{structures:"stats/structure.json", weapons:"stats/weapons.json"} } };
+    const sensors = await loadJSON("stats/sensor.json");
+    return {
+      meta:{source:"local", filename:null},
+      base:"stats",
+      structures,
+      weapons,
+      sensors,
+      files:{structures:"stats/structure.json", weapons:"stats/weapons.json", sensors:"stats/sensor.json"},
+      baseline:{
+        base:"stats",
+        structures,
+        weapons,
+        sensors,
+        files:{structures:"stats/structure.json", weapons:"stats/weapons.json", sensors:"stats/sensor.json"}
+      }
+    };
   }
   const BOOTSTRAP = await loadBootstrap();
   const sourceBadge = document.getElementById('sourceBadge');
@@ -253,7 +268,9 @@ tr:hover td{ background:#0e141c; }
     if (!data || typeof data !== 'object') return data;
     const candidates = kind === 'structures'
       ? ['structures','structure','STRUCTURES','STRUCTURE','StructureStats','structs']
-      : ['weapons','weampons','weapon','WEAPONS','WEAPON','WeaponStats','weaps'];
+      : kind === 'weapons'
+        ? ['weapons','weampons','weapon','WEAPONS','WEAPON','WeaponStats','weaps']
+        : ['sensors','sensor','SENSORS','SENSOR','SensorStats'];
     for (const k of candidates) if (Object.prototype.hasOwnProperty.call(data, k)) return data[k];
     return data;
   }
@@ -273,6 +290,8 @@ tr:hover td{ background:#0e141c; }
   const tabs = { structures: normalizeRows(BOOTSTRAP.structures, 'structures'), weapons: normalizeRows(BOOTSTRAP.weapons, 'weapons') };
   const weaponMap = new Map();
   (tabs.weapons || []).forEach(w => { const id = (w && w.id !== undefined) ? String(w.id) : null; if (id) weaponMap.set(id, w); });
+  const sensorMap = new Map();
+  (normalizeRows(BOOTSTRAP.sensors, 'sensors') || []).forEach(s => { const id = (s && s.id !== undefined) ? String(s.id) : null; if (id) sensorMap.set(id, s); });
   const baseline = { structures: normalizeRows(BOOTSTRAP.baseline && BOOTSTRAP.baseline.structures, 'structures'), weapons: normalizeRows(BOOTSTRAP.baseline && BOOTSTRAP.baseline.weapons, 'weapons') };
   const diffs = { structures: diffRows(tabs.structures, baseline.structures), weapons: diffRows(tabs.weapons, baseline.weapons) };
 
@@ -366,6 +385,14 @@ tr:hover td{ background:#0e141c; }
         try { const arr = JSON.parse(v); if (Array.isArray(arr)) arr.forEach(s => add(s)); else add(v); }
         catch(e){ add(v); }
       } else { add(v); }
+    }
+    // include sensor models referenced by structures
+    const sensorId = row.sensorID || row.sensorid;
+    if (sensorId != null) {
+      const s = sensorMap.get(String(sensorId));
+      if (s) {
+        ['mountModel','sensorModel'].forEach(f => add(s[f]));
+      }
     }
     // include weapon models referenced by structures
     const weaponIds = row.weapons;
@@ -573,11 +600,14 @@ tr:hover td{ background:#0e141c; }
       try {
         const structText = await extractZipText(buf, 'stats/structure.json').catch(()=>extractZipText(buf,'stats/structures.json'));
         const weaponText = await extractZipText(buf, 'stats/weapons.json');
+        const sensorText = await extractZipText(buf, 'stats/sensor.json').catch(()=> '[]');
         const structuresData = JSON.parse(structText);
         const weaponsData = JSON.parse(weaponText);
+        const sensorsData = JSON.parse(sensorText);
         const structures = Array.isArray(structuresData) ? structuresData : (structuresData.structures ? structuresData.structures : Object.values(structuresData));
         const weapons = Array.isArray(weaponsData) ? weaponsData : (weaponsData.weapons ? weaponsData.weapons : Object.values(weaponsData));
-        return { structures, weapons };
+        const sensors = Array.isArray(sensorsData) ? sensorsData : (sensorsData.sensors ? sensorsData.sensors : Object.values(sensorsData));
+        return { structures, weapons, sensors };
       } catch (zipErr) {
         throw new Error('Unsupported file type');
       }
@@ -593,13 +623,15 @@ tr:hover td{ background:#0e141c; }
         const data = await parseUploadedFile(f);
         const baseStructs = await loadJSON('stats/structure.json');
         const baseWeapons = await loadJSON('stats/weapons.json');
+        const baseSensors = await loadJSON('stats/sensor.json');
         const store = {
           meta:{source:'upload', filename:f.name},
           base:'upload',
           structures:data.structures || [],
           weapons:data.weapons || [],
+          sensors:data.sensors || [],
           files:{},
-          baseline:{ base:'stats', structures:baseStructs, weapons:baseWeapons, files:{structures:'stats/structure.json', weapons:'stats/weapons.json'} }
+          baseline:{ base:'stats', structures:baseStructs, weapons:baseWeapons, sensors:baseSensors, files:{structures:'stats/structure.json', weapons:'stats/weapons.json', sensors:'stats/sensor.json'} }
         };
         localStorage.setItem(UPLOAD_KEY, JSON.stringify(store));
         location.reload();
