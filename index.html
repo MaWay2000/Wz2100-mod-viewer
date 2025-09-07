@@ -350,7 +350,8 @@ tr:hover td{ background:#0e141c; }
       if (id == null) return;
       const w = weaponMap.get(String(id));
       if (!w) return;
-      ['model','mountModel','baseModel','basemodel','barrelModel','turretModel'].forEach(f => add(w[f]));
+      // ensure base/mount models load before weapon model so weapons sit atop mounts
+      ['mountModel','baseModel','basemodel','model','barrelModel','turretModel'].forEach(f => add(w[f]));
     });
     return out;
   }
