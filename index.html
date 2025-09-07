@@ -135,9 +135,13 @@ tr:hover td{ background:#0e141c; }
     // Search order for PIE assets. Structures now live in /structs, while
     // weapon, body and propulsion models are under their respective
     // subdirectories inside /components.
+    // Weapon models live under /components/weapons, while structures
+    // are found in /structs. Check the weapon path first so that the
+    // Weapons tab does not try to load files from the structures
+    // directory.
     const roots = [
-      'structs',
       'components/weapons',
+      'structs',
       'components/bodies',
       'components/prop',
       'components',
