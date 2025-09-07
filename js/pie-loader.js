@@ -116,7 +116,12 @@ async function render(canvas, url, options={}){
     );
   }
   scene.add(mesh);
-  renderer.render(scene, camera);
+  function animate(){
+    requestAnimationFrame(animate);
+    mesh.rotation.y += 0.005;
+    renderer.render(scene, camera);
+  }
+  animate();
 }
 
 window.PIELoader = { render };
