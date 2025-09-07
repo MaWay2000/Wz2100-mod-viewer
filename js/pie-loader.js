@@ -122,6 +122,7 @@ async function render(canvas, url, options={}){
   const group = new THREE.Group();
   const box = new THREE.Box3();
   let baseBox = null;
+  let topY = null;
   for (const { geometry, url: geomUrl } of geometries){
     const materialOptions = { color:0xdddddd };
     if(geometry.userData.texture){
@@ -142,13 +143,21 @@ async function render(canvas, url, options={}){
       // first geometry acts as the base; remember its bounding box so
       // subsequent pieces can be positioned relative to it
       baseBox = geometry.boundingBox.clone();
-    } else if (geomUrl && (/components\/weapons\//i.test(geomUrl) || /#weapon\b/i.test(geomUrl))) {
-      // Weapon models are authored with their origin at ground level.
-      // When rendering a structure + weapon combo, push weapon geometry
-      // upwards so its bottom sits on top of the base model.
-      const offset = baseBox.max.y - geometry.boundingBox.min.y;
+      topY = baseBox.max.y;
+    } else if (geomUrl && /#(weapon|stack)\b/i.test(geomUrl)) {
+      // Additional components are authored with their origin at ground level.
+      // Stack them so their bottom sits on top of the previous piece.
+      const refY = topY != null ? topY : baseBox.max.y;
+      const offset = refY - geometry.boundingBox.min.y;
       geometry.translate(0, offset, 0);
       geometry.computeBoundingBox();
+      topY = geometry.boundingBox.max.y;
+    } else {
+      // part of the base structure; update topY if this piece extends higher
+      if (geometry.boundingBox && geometry.boundingBox.max) {
+        const ymax = geometry.boundingBox.max.y;
+        if (topY == null || ymax > topY) topY = ymax;
+      }
     }
     // three.js's Box3 doesn't have an `expandByBox3` method. The
     // `union` method expands the current box to include the provided
