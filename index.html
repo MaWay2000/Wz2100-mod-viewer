@@ -295,10 +295,37 @@ tr:hover td{ background:#0e141c; }
   const sensorMap = new Map();
   (normalizeRows(BOOTSTRAP.sensors, 'sensors') || []).forEach(s => { const id = (s && s.id !== undefined) ? String(s.id) : null; if (id) sensorMap.set(id, s); });
   const baseline = { structures: normalizeRows(BOOTSTRAP.baseline && BOOTSTRAP.baseline.structures, 'structures'), weapons: normalizeRows(BOOTSTRAP.baseline && BOOTSTRAP.baseline.weapons, 'weapons') };
+
+  const baselineWeaponMap = new Map();
+  (baseline.weapons || []).forEach(w => { const id = (w && w.id !== undefined) ? String(w.id) : null; if (id) baselineWeaponMap.set(id, w); });
+
+  function augmentStructureTotals(rows, map){
+    rows.forEach(r => {
+      const basePoints = Number(r.buildPoints) || 0;
+      const basePower = Number(r.buildPower) || 0;
+      let weaponPoints = 0, weaponPower = 0;
+      const ids = Array.isArray(r.weapons) ? r.weapons : (r.weapons !== undefined ? [r.weapons] : []);
+      ids.forEach(id => {
+        const w = map.get(String(id));
+        if (w){
+          weaponPoints += Number(w.buildPoints) || 0;
+          weaponPower += Number(w.buildPower) || 0;
+        }
+      });
+      r.weaponBuildPoints = weaponPoints;
+      r.weaponBuildPower = weaponPower;
+      r.totalBuildPoints = basePoints + weaponPoints;
+      r.totalBuildPower = basePower + weaponPower;
+    });
+  }
+
+  augmentStructureTotals(tabs.structures, weaponMap);
+  augmentStructureTotals(baseline.structures, baselineWeaponMap);
+
   const diffs = { structures: diffRows(tabs.structures, baseline.structures), weapons: diffRows(tabs.weapons, baseline.weapons) };
 
   const preferCols = {
-    structures: ['id','name','type','buildPoints','hitpoints','armour','thermal','strength','buildPower','weapons','longrange','damage'],
+    structures: ['id','name','type','buildPoints','weaponBuildPoints','totalBuildPoints','buildPower','weaponBuildPower','totalBuildPower','hitpoints','armour','thermal','strength','weapons','longrange','damage'],
     weapons: ['id','name','Damage','Range','ReloadTime','Class','model','baseModel']
   };
 
@@ -352,7 +379,7 @@ tr:hover td{ background:#0e141c; }
   }
 
   const USER_DEFAULTS_KEY = 'wzStatsUserDefaultCols_v1'; let userDefaultCols = {}; try { const u = localStorage.getItem(USER_DEFAULTS_KEY); if (u) userDefaultCols = JSON.parse(u) || {}; } catch(e){}
-  const defaultCols = { structures: ['name','type','buildpoints','hitpoints','armour','thermal','strength','damage','longrange','buildpower'], weapons: ['name','buildpoints','buildpower','damage','hitpoints','longrange','reloadtime','weaponclass'] };
+  const defaultCols = { structures: ['name','type','buildpoints','weaponbuildpoints','totalbuildpoints','hitpoints','armour','thermal','strength','damage','longrange','buildpower','weaponbuildpower','totalbuildpower'], weapons: ['name','buildpoints','buildpower','damage','hitpoints','longrange','reloadtime','weaponclass'] };
   function getDefaultCols(){ const all = currentAllCols(); const user = userDefaultCols[activeTab]; const wanted = (Array.isArray(user) && user.length ? user : (defaultCols[activeTab] || all)); return wanted.filter(c => all.includes(c)); }
 
   function getRaw(row, label){
