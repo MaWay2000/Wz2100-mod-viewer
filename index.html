@@ -1,194 +1,3 @@
-// index.html — Warzone 2100 stats viewer (structures & weapons) with diffing & filters
-// (This build adds inline PIE thumbnails next to Names in both tabs, replacing the .pie filename badge.)
-
-function rrmdir($dir) {
-  if (!is_dir($dir)) return;
-  $objects = scandir($dir);
-  foreach ($objects as $object) {
-    if ($object === "." || $object === "..") continue;
-    $path = $dir . DIRECTORY_SEPARATOR . $object;
-    if (is_dir($path)) rrmdir($path); else @unlink($path);
-  }
-  @rmdir($dir);
-}
-function safe_extract_zip($zipPath, $destDir) {
-  $zip = new ZipArchive();
-  if ($zip->open($zipPath) !== TRUE) return false;
-  if (!is_dir($destDir)) @mkdir($destDir, 0777, true);
-  for ($i = 0; $i < $zip->numFiles; $i++) {
-    $entry = $zip->getNameIndex($i);
-    $entryPath = str_replace(array('\\', '//'), '/', $entry);
-    if (strpos($entryPath, '../') !== false) continue;
-    $fullPath = $destDir . '/' . $entryPath;
-    if (substr($entry, -1) === '/') {
-      if (!is_dir($fullPath)) @mkdir($fullPath, 0777, true);
-    } else {
-      $dirName = dirname($fullPath);
-      if (!is_dir($dirName)) @mkdir($dirName, 0777, true);
-      $stream = $zip->getStream($entry);
-      if ($stream) {
-        $fp = fopen($fullPath, 'w');
-        while (!feof($stream)) { fwrite($fp, fread($stream, 8192)); }
-        fclose($fp); fclose($stream);
-      }
-    }
-  }
-  $zip->close();
-  return true;
-}
-function read_json_file($path) {
-  if (!file_exists($path)) return null;
-  $txt = file_get_contents($path);
-  if ($txt === false) return null;
-  $data = json_decode($txt, true);
-  if (json_last_error() !== JSON_ERROR_NONE) {
-    return array('__error' => 'JSON decode error: ' . json_last_error_msg(), '__raw' => $txt);
-  }
-  return $data;
-}
-function find_stats_base($root) {
-  if (is_dir($root . '/stats')) return $root . '/stats';
-  $entries = array_values(array_filter(scandir($root), function($x){ return $x !== '.' && $x !== '..'; }));
-  if (count($entries) === 1 && is_dir($root . '/' . $entries[0])) {
-    if (is_dir($root . '/' . $entries[0] . '/stats')) return $root . '/' . $entries[0] . '/stats';
-  }
-  return null;
-}
-function list_files_once($dir) {
-  if (!is_dir($dir)) return array();
-  $out = array();
-  foreach (scandir($dir) as $f) {
-    if ($f === '.' || $f === '..') continue;
-    $p = $dir . DIRECTORY_SEPARATOR . $f;
-    if (is_file($p)) $out[] = $p;
-  }
-  return $out;
-}
-function basename_no_ext_lower($path) { return strtolower(pathinfo($path, PATHINFO_FILENAME)); }
-function find_by_basenames_ci($dir, $names) {
-  $namesLC = array_map('strtolower', $names);
-  foreach (list_files_once($dir) as $p) if (in_array(basename_no_ext_lower($p), $namesLC, true)) return $p; return null;
-}
-function find_by_contains_ci($dir, $needles) {
-  $needlesLC = array_map('strtolower', $needles);
-  foreach (list_files_once($dir) as $p) { $bn = basename_no_ext_lower($p); foreach ($needlesLC as $n) if (strpos($bn, $n) !== false) return $p; } return null;
-}
-function find_first_json_looking($dir) {
-  foreach (list_files_once($dir) as $p) {
-    $head = @file_get_contents($p, false, null, 0, 4096); if ($head === false) continue;
-    $trim = ltrim($head);
-    if ($trim !== '' && ($trim[0] === '{' || $trim[0] === '[')) {
-      $data = json_decode($head, true);
-      if (json_last_error() === JSON_ERROR_NONE) return $p;
-      $txt = @file_get_contents($p);
-      if ($txt !== false) { $data = json_decode($txt, true); if (json_last_error() === JSON_ERROR_NONE) return $p; }
-    }
-  }
-  return null;
-}
-
-$loadSource = 'local'; $uploadError = null; $meta = array('source' => 'local', 'filename' => null); $extractedDir = null;
-if (isset($_GET['load'])) {
-  $exampleKey = $_GET['load']; $examples = array('dumbyhost' => __DIR__ . '/dumbyhostmod.zip');
-  if (isset($examples[$exampleKey]) && file_exists($examples[$exampleKey])) {
-    $path = $examples[$exampleKey]; $meta['filename'] = basename($path); $meta['source'] = 'upload';
-    if (is_dir($path)) { $statsBase = find_stats_base($path); if ($statsBase === null) $uploadError = 'Example folder does not contain a /stats folder.'; else $loadSource = $statsBase; }
-    else { if (!class_exists('ZipArchive')) $uploadError = 'ZipArchive PHP extension is not enabled on this server.';
-      else { $extractedDir = sys_get_temp_dir() . '/wzstats_' . uniqid();
-        if (!safe_extract_zip($path, $extractedDir)) { $uploadError = 'Failed to open/extract the example archive.'; }
-        else { $statsBase = find_stats_base($extractedDir); if ($statsBase === null) $uploadError = 'Example archive does not contain a /stats folder.'; else $loadSource = $statsBase; }
-      }
-    }
-  } else { $uploadError = 'Example not found on server.'; }
-}
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['wzfile'])) {
-  $f = $_FILES['wzfile'];
-  if ($f['error'] === UPLOAD_ERR_OK) {
-    $tmpName = $f['tmp_name']; $name = $f['name']; $meta['filename'] = $name; $meta['source'] = 'upload';
-    if (!class_exists('ZipArchive')) $uploadError = 'ZipArchive PHP extension is not enabled on this server.';
-    else { $extractedDir = sys_get_temp_dir() . '/wzstats_' . uniqid();
-      if (!safe_extract_zip($tmpName, $extractedDir)) $uploadError = 'Failed to open/extract the uploaded file as a zip / wz.';
-      else { $statsBase = find_stats_base($extractedDir); if ($statsBase === null) $uploadError = 'Uploaded archive does not contain a /stats folder.'; else $loadSource = $statsBase; }
-    }
-  } else { $uploadError = 'Upload error code: ' . $f['error']; }
-}
-if ($loadSource === 'local') { $loadSource = find_stats_base(__DIR__); if ($loadSource === null) $loadSource = null; }
-
-$structures = null; $weapons = null; $structureFile = null; $weaponsFile = null;
-if ($loadSource) {
-  $structureFile = find_by_basenames_ci($loadSource, array('structure','structures'));
-  $weaponsFile   = find_by_basenames_ci($loadSource, array('weapons','weampons','weapon'));
-  if (!$structureFile) $structureFile = find_by_contains_ci($loadSource, array('struct'));
-  if (!$weaponsFile)   $weaponsFile   = find_by_contains_ci($loadSource, array('weapon','weampon','weap'));
-  if (!$structureFile) $structureFile = find_first_json_looking($loadSource);
-  if (!$weaponsFile) {
-    $cand = find_first_json_looking($loadSource);
-    if ($cand && $structureFile && realpath($cand) === realpath($structureFile)) {
-      $all = list_files_once($loadSource);
-      foreach ($all as $p) {
-        if (realpath($p) === realpath($structureFile)) continue;
-        $head = @file_get_contents($p, false, null, 0, 4096); if ($head === false) continue;
-        $trim = ltrim($head);
-        if ($trim !== '' && ($trim[0] === '{' || $trim[0] === '[')) {
-          $dataTest = json_decode($head, true);
-          if (json_last_error() === JSON_ERROR_NONE) { $cand = $p; break; }
-          $txt = @file_get_contents($p);
-          if ($txt !== false) { $dataTest = json_decode($txt, true); if (json_last_error() === JSON_ERROR_NONE) { $cand = $p; break; } }
-        }
-      }
-    }
-    $weaponsFile = $cand;
-  }
-  if ($structureFile) $structures = read_json_file($structureFile);
-  if ($weaponsFile)   $weapons   = read_json_file($weaponsFile);
-}
-
-$baselineBase = find_stats_base(__DIR__);
-$baselineStructures = null; $baselineWeapons = null; $baselineStructureFile = null; $baselineWeaponsFile = null;
-if ($baselineBase) {
-  $baselineStructureFile = find_by_basenames_ci($baselineBase, array('structure','structures'));
-  $baselineWeaponsFile   = find_by_basenames_ci($baselineBase, array('weapons','weampons','weapon'));
-  if (!$baselineStructureFile) $baselineStructureFile = find_by_contains_ci($baselineBase, array('struct'));
-  if (!$baselineWeaponsFile)   $baselineWeaponsFile   = find_by_contains_ci($baselineBase, array('weapon','weampon','weap'));
-  if (!$baselineStructureFile) $baselineStructureFile = find_first_json_looking($baselineBase);
-  if (!$baselineWeaponsFile) {
-    $cand = find_first_json_looking($baselineBase);
-    if ($cand && $baselineStructureFile && realpath($cand) === realpath($baselineStructureFile)) {
-      $all = list_files_once($baselineBase);
-      foreach ($all as $p) {
-        if (realpath($p) === realpath($baselineStructureFile)) continue;
-        $head = @file_get_contents($p, false, null, 0, 4096); if ($head === false) continue;
-        $trim = ltrim($head);
-        if ($trim !== '' && ($trim[0] === '{' || $trim[0] === '[')) {
-          $dataTest = json_decode($head, true);
-          if (json_last_error() === JSON_ERROR_NONE) { $cand = $p; break; }
-          $txt = @file_get_contents($p);
-          if ($txt !== false) { $dataTest = json_decode($txt, true); if (json_last_error() === JSON_ERROR_NONE) { $cand = $p; break; } }
-        }
-      }
-    }
-    $baselineWeaponsFile = $cand;
-  }
-  if ($baselineStructureFile) $baselineStructures = read_json_file($baselineStructureFile);
-  if ($baselineWeaponsFile)   $baselineWeapons   = read_json_file($baselineWeaponsFile);
-}
-
-register_shutdown_function(function() use ($extractedDir) { if ($extractedDir && is_dir($extractedDir)) rrmdir($extractedDir); });
-
-$bootstrap = array(
-  'meta' => $meta,
-  'base' => $loadSource,
-  'structures' => $structures,
-  'weapons' => $weapons,
-  'files' => array('structures' => $structureFile, 'weapons' => $weaponsFile),
-  'baseline' => array(
-    'base' => $baselineBase,
-    'structures' => $baselineStructures,
-    'weapons' => $baselineWeapons,
-    'files' => array('structures' => $baselineStructureFile, 'weapons' => $baselineWeaponsFile),
-  ),
-);
-?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -248,26 +57,7 @@ tr:hover td{ background:#0e141c; }
 
 <header>
   <h1>WZ Stats Viewer</h1>
-  <span class="badge" id="sourceBadge">Source: <?php
-    if ($bootstrap['meta']['source'] === 'upload') {
-      echo 'uploaded archive';
-      if ($bootstrap['meta']['filename']) echo ' ('.htmlspecialchars($bootstrap['meta']['filename']).')';
-    } else if ($bootstrap['base']) {
-      echo 'local ./stats';
-    } else {
-      echo 'no stats found yet';
-    }
-  ?></span>
-  <form method="post" enctype="multipart/form-data" id="uploadForm" style="display:flex; gap:8px; align-items:center;">
-  <?php if (($bootstrap['meta']['source'] ?? '') === 'upload') { ?>
-    <button type="button" class="tab" id="resetBtn">Reset</button>
-  <?php } else { ?>
-    <label class="tab" for="wzfile">Upload mod</label>
-    <input id="wzfile" name="wzfile" type="file" style="display:none" onchange="this.form.submit();" />
-  <?php } ?>
-  <span class="small">Mods located: \\Warzone 2100\\mods\\downloads</span>
-  <?php if (!empty($uploadError)) { echo '<span class="bad">'.htmlspecialchars($uploadError).'</span>'; } ?>
-</form>
+  <span class="badge" id="sourceBadge">Source: local ./stats</span>
 </header>
 
 <div class="container">
@@ -334,9 +124,21 @@ tr:hover td{ background:#0e141c; }
     return false;
   }
 
-const BOOTSTRAP = <?php echo json_encode($bootstrap, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>;
 
-(function(){
+(async function(){
+  async function loadJSON(path){
+    try{
+      const res = await fetch(path);
+      if(!res.ok) throw new Error("failed to load");
+      return await res.json();
+    }catch(e){
+      console.error("Failed to load", path, e);
+      return [];
+    }
+  }
+  const structures = await loadJSON("stats/structure.json");
+  const weapons = await loadJSON("stats/weapons.json");
+  const BOOTSTRAP = { meta:{source:"local", filename:null}, base:"stats", structures, weapons, files:{structures:"stats/structure.json", weapons:"stats/weapons.json"}, baseline:{ base:"stats", structures, weapons, files:{structures:"stats/structure.json", weapons:"stats/weapons.json"} } };
   function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;').replace(/'/g,'&#39;'); }
   const isNumber = (v) => typeof v === 'number' || (typeof v === 'string' && v.trim() !== '' && !isNaN(Number(v)));
   const toCell = (v) => (v===null||v===undefined) ? '' : (typeof v === 'object' ? JSON.stringify(v) : String(v));
@@ -633,18 +435,6 @@ const BOOTSTRAP = <?php echo json_encode($bootstrap, JSON_UNESCAPED_SLASHES | JS
 })();
 </script>
 
-<script>
-document.addEventListener("DOMContentLoaded", function() {
-  var resetBtn = document.getElementById("resetBtn");
-  if (resetBtn) {
-    resetBtn.addEventListener("click", function() {
-      const url = new URL(window.location.href);
-      url.search = "";
-      window.location.href = url.pathname;
-    });
-  }
-});
-</script>
 
 </body>
 </html>
