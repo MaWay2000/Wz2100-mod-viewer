@@ -14,13 +14,14 @@ window.WZPIE.renderToCanvas = renderPieIntoCanvas;
 
 // If the page wants to auto-init a base path, it may provide
 // <meta name="pie-base" content="/assets/">; we apply it here.
+// Defaults to the current directory.
 try {
   const meta = document.querySelector('meta[name="pie-base"][content]');
   if (meta && meta.content) {
     configurePieBase(meta.content);
   } else {
-    configurePieBase('/pies');
+    configurePieBase('.');
   }
 } catch (_) {
-  configurePieBase('/pies');
+  configurePieBase('.');
 }
