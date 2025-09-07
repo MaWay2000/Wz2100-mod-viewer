@@ -81,6 +81,12 @@ async function render(canvas, url, options={}){
     canvas.replaceWith(document.createTextNode('WebGL not supported'));
     return;
   }
+  // clean up any previous renderer/animation attached to this canvas
+  if (canvas.__wzCleanup) {
+    try { canvas.__wzCleanup(); } catch (_) {}
+    delete canvas.__wzCleanup;
+  }
+
   const urls = Array.isArray(url) ? url : [url];
   const geometries = [];
   for (const u of urls){
@@ -102,6 +108,7 @@ async function render(canvas, url, options={}){
   const group = new THREE.Group();
   const box = new THREE.Box3();
   let baseBox = null;
+  const disposables = [];
   for (const { geometry, url: geomUrl } of geometries){
     const materialOptions = { color:0xdddddd };
     if(geometry.userData.texture){
@@ -111,6 +118,7 @@ async function render(canvas, url, options={}){
         const tex = await loader.loadAsync(texUrl);
         tex.flipY = false;
         materialOptions.map = tex;
+        disposables.push(tex);
       } catch(e){
         console.error('Failed to load texture', e);
       }
@@ -136,6 +144,7 @@ async function render(canvas, url, options={}){
     // bounding boxes.
     if (geometry.boundingBox) box.union(geometry.boundingBox);
     group.add(mesh);
+    disposables.push(geometry, material);
   }
   // center and scale group
   const size = new THREE.Vector3();
@@ -148,12 +157,21 @@ async function render(canvas, url, options={}){
   group.scale.setScalar(s);
   group.position.set(-center.x*s, -center.y*s, -center.z*s);
   scene.add(group);
+  let frameId;
   function animate(){
-    requestAnimationFrame(animate);
+    frameId = requestAnimationFrame(animate);
     group.rotation.y += 0.005;
     renderer.render(scene, camera);
   }
   animate();
+
+  // attach cleanup so subsequent renders can dispose of resources
+  canvas.__wzCleanup = () => {
+    cancelAnimationFrame(frameId);
+    disposables.forEach(d => d && typeof d.dispose === 'function' && d.dispose());
+    renderer.dispose();
+    try { renderer.forceContextLoss(); } catch(_) {}
+  };
 }
 
 window.PIELoader = { render };
