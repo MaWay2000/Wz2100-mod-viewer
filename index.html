@@ -105,7 +105,20 @@ tr:hover td{ background:#0e141c; }
 
   const pieOverlay = null;
   async function resolvePieUrl(filename){
-    const roots = ['components','structs','structures','effects','models','base'];
+    // Search order for PIE assets. Structures now live in /structs, while
+    // weapon, body and propulsion models are under their respective
+    // subdirectories inside /components.
+    const roots = [
+      'structs',
+      'components/weapons',
+      'components/bodies',
+      'components/prop',
+      'components',
+      'structures',
+      'effects',
+      'models',
+      'base'
+    ];
     for (const r of roots){
       const url = `${r}/${filename}`;
       try {
