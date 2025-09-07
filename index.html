@@ -346,8 +346,9 @@ tr:hover td{ background:#0e141c; }
     if (!row || typeof row !== 'object') return [];
     const fields = ['baseModel','basemodel','structureModel','structuremodel','model','modelFile','weaponsModel','turretModel'];
     const out = [];
-    const add = (s, prefix = '') => {
+    const add = (s, prefix) => {
       if (!s) return;
+      if (typeof prefix !== 'string') prefix = '';
       let name = String(s).trim().replace(/^\[|\]$/g,'');
       name = name.replace(/^\[\"']+|[\\"']+$/g,'');
       const parts = name.split(/[\\/]/);
@@ -360,9 +361,9 @@ tr:hover td{ background:#0e141c; }
     for (const f of fields){
       if (row[f] === undefined) continue;
       const v = row[f];
-      if (Array.isArray(v)) v.forEach(add);
+      if (Array.isArray(v)) v.forEach(s => add(s));
       else if (typeof v === 'string') {
-        try { const arr = JSON.parse(v); if (Array.isArray(arr)) arr.forEach(add); else add(v); }
+        try { const arr = JSON.parse(v); if (Array.isArray(arr)) arr.forEach(s => add(s)); else add(v); }
         catch(e){ add(v); }
       } else { add(v); }
     }
