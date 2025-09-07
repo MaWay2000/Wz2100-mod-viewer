@@ -1,6 +1,20 @@
 import * as THREE from './three.module.js';
 import { resolveTextureUrl } from './pie.js';
 
+// Ensure getShaderPrecisionFormat never returns null
+if (window.WebGLRenderingContext && WebGLRenderingContext.prototype.getShaderPrecisionFormat) {
+  const original = WebGLRenderingContext.prototype.getShaderPrecisionFormat;
+  WebGLRenderingContext.prototype.getShaderPrecisionFormat = function() {
+    return original.apply(this, arguments) || { precision: 0, rangeMin: 0, rangeMax: 0 };
+  };
+}
+if (typeof WebGL2RenderingContext !== 'undefined' && WebGL2RenderingContext.prototype.getShaderPrecisionFormat) {
+  const original = WebGL2RenderingContext.prototype.getShaderPrecisionFormat;
+  WebGL2RenderingContext.prototype.getShaderPrecisionFormat = function() {
+    return original.apply(this, arguments) || { precision: 0, rangeMin: 0, rangeMax: 0 };
+  };
+}
+
 function isWebGLAvailable(){
   try{
     const canvas = document.createElement('canvas');
