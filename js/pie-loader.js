@@ -29,6 +29,7 @@ function parsePieGeometry(text){
   const vertices = [];
   const positions = [];
   const uvs = [];
+  const connectors = [];
   let textureFile = null;
   let texW = 256, texH = 256;
   let i = 0;
@@ -71,6 +72,13 @@ function parsePieGeometry(text){
           uvs.push(u0, v0, u1, v1, u2, v2);
         }
       }
+    } else if(line.startsWith('CONNECTORS')){
+      const count = parseInt(line.split(/\s+/)[1], 10);
+      for(let j=0;j<count;j++){
+        i++;
+        const parts = lines[i].split(/\s+/).map(Number);
+        connectors.push(parts);
+      }
     }
     i++;
   }
@@ -79,6 +87,7 @@ function parsePieGeometry(text){
   if(uvs.length) geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
   geo.computeVertexNormals();
   geo.userData.texture = textureFile;
+  if(connectors.length) geo.userData.connectors = connectors;
   return geo;
 }
 
@@ -150,10 +159,17 @@ async function render(canvas, url, options={}){
       weaponTop = baseTop;
       stackTop = baseTop;
     } else if (geomUrl && /#weapon\b/i.test(geomUrl)) {
-      // Weapon components stack on top of each other
-      const refY = weaponTop != null ? weaponTop : baseTop;
-      const offset = refY - geometry.boundingBox.min.y;
-      geometry.translate(0, offset, 0);
+      // Weapon components are positioned using connector data when available;
+      // fall back to stacking behavior otherwise.
+      const baseY = baseTop != null ? baseTop : 0;
+      if (geometry.userData && Array.isArray(geometry.userData.connectors) && geometry.userData.connectors.length) {
+        const [cx = 0, cy = 0, cz = 0] = geometry.userData.connectors[0];
+        geometry.translate(-cx, baseY - cy, -cz);
+      } else {
+        const refY = weaponTop != null ? weaponTop : baseY;
+        const offset = refY - geometry.boundingBox.min.y;
+        geometry.translate(0, offset, 0);
+      }
       geometry.computeBoundingBox();
       weaponTop = geometry.boundingBox.max.y;
     } else if (geomUrl && /#stack\b/i.test(geomUrl)) {
