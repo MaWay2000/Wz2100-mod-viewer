@@ -2,6 +2,25 @@
 import * as THREE from "./three.module.js";
 import { parsePie } from "./pie.js";
 
+// Some environments fail to provide shader precision info, returning `null`.
+// three.js assumes a valid object is returned which leads to a runtime error
+// when creating a WebGLRenderer. Guard against this by patching the prototype
+// method to always return a default object when the underlying call yields
+// `null`.
+if (window.WebGLRenderingContext && WebGLRenderingContext.prototype.getShaderPrecisionFormat) {
+  const original = WebGLRenderingContext.prototype.getShaderPrecisionFormat;
+  WebGLRenderingContext.prototype.getShaderPrecisionFormat = function() {
+    return original.apply(this, arguments) || { precision: 0, rangeMin: 0, rangeMax: 0 };
+  };
+}
+
+if (typeof WebGL2RenderingContext !== 'undefined' && WebGL2RenderingContext.prototype.getShaderPrecisionFormat) {
+  const original = WebGL2RenderingContext.prototype.getShaderPrecisionFormat;
+  WebGL2RenderingContext.prototype.getShaderPrecisionFormat = function() {
+    return original.apply(this, arguments) || { precision: 0, rangeMin: 0, rangeMax: 0 };
+  };
+}
+
 export async function renderPieThumbnail(container, fileOrText) {
   if (!container) throw new Error("mini-viewer: missing container");
 
