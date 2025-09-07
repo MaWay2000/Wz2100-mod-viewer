@@ -131,26 +131,28 @@ tr:hover td{ background:#0e141c; }
         for (const f of filename) out.push(await resolvePieUrl(f));
         return out;
       }
-      filename = String(filename || '').toLowerCase();
+      const orig = String(filename || '');
+      const lower = orig.toLowerCase();
+      const isWeapon = /components\/weapons\//.test(lower);
       // PIE assets live directly under /pies; strip any path components.
-      filename = filename.replace(/^.*[\\\/]/, '');
-      const url = `pies/${filename}`;
+      let name = lower.replace(/^.*[\\\/]/, '');
+      const baseUrl = `pies/${name}`;
       try {
-        const res = await fetch(url, { method: 'HEAD' });
-        if (res.ok) return url;
+        const res = await fetch(baseUrl, { method: 'HEAD' });
+        if (res.ok) return isWeapon ? `${baseUrl}#weapon` : baseUrl;
       } catch (_) {}
       // some stats reference PIE files with a leading zero that is
       // not present in the assets directory. Try stripping leading
       // zeroes and look for a matching file.
-      const alt = filename.replace(/^0+/, '');
-      if (alt !== filename) {
-        const altUrl = `pies/${alt}`;
+      const alt = name.replace(/^0+/, '');
+      if (alt !== name) {
+        const altBase = `pies/${alt}`;
         try {
-          const res2 = await fetch(altUrl, { method: 'HEAD' });
-          if (res2.ok) return altUrl;
+          const res2 = await fetch(altBase, { method: 'HEAD' });
+          if (res2.ok) return isWeapon ? `${altBase}#weapon` : altBase;
         } catch (_) {}
       }
-      return filename;
+      return isWeapon ? `${name}#weapon` : name;
     }
   async function renderPieToCanvas(canvas, pieFile){
     const files = Array.isArray(pieFile) ? pieFile : [pieFile];
