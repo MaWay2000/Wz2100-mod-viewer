@@ -105,6 +105,7 @@ tr:hover td{ background:#0e141c; }
 
   const pieOverlay = null;
   async function resolvePieUrl(filename){
+    filename = String(filename || '').toLowerCase();
     // Search order for PIE assets. Structures now live in /structs, while
     // weapon, body and propulsion models are under their respective
     // subdirectories inside /components.
