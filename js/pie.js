@@ -20,7 +20,9 @@ export function setPiesBase(base) {
  */
 export function resolveTextureUrl(relPath) {
   if (!relPath) return null;
-  var s = String(relPath);
+  // Coerce to string and normalise casing so PIE data with upper-case paths
+  // can reference lower-case files on case-sensitive file systems.
+  var s = String(relPath).toLowerCase();
   // Normalise backslashes and leading ./
   s = s.replace(/\\/g, "/").replace(/^\.\/+/, "");
   // Avoid accidental double slashes when joining
