@@ -163,21 +163,16 @@ async function render(canvas, url, options={}){
         baseWeaponConnector = geometry.userData.connectors[0];
       }
     } else if (geomUrl && /#weapon\b/i.test(geomUrl)) {
-      // Weapon components are positioned using connector data when available;
-      // fall back to stacking behavior otherwise.
+      // Weapon components align their origin with the base connector when
+      // available, ignoring any connectors defined on the component itself.
+      // Fall back to stacking behavior if no base connector exists.
       const baseY = baseTop != null ? baseTop : 0;
       let tx = 0, ty = 0, tz = 0;
-      if (geometry.userData && Array.isArray(geometry.userData.connectors) && geometry.userData.connectors.length) {
-        const [cx = 0, cy = 0, cz = 0] = geometry.userData.connectors[0];
-        let bcx = 0, bcy = weaponTop != null ? weaponTop : baseY, bcz = 0;
-        if (baseWeaponConnector) {
-          bcx = baseWeaponConnector[0] || 0;
-          bcy = baseWeaponConnector[1] || bcy;
-          bcz = baseWeaponConnector[2] || 0;
-        }
-        tx = bcx - cx;
-        ty = bcy - cy;
-        tz = bcz - cz;
+      if (baseWeaponConnector) {
+        const [bcx = 0, bcy = baseY, bcz = 0] = baseWeaponConnector;
+        tx = bcx;
+        ty = bcy;
+        tz = bcz;
       } else {
         const refY = weaponTop != null ? weaponTop : baseY;
         const offset = refY - geometry.boundingBox.min.y;
@@ -186,9 +181,6 @@ async function render(canvas, url, options={}){
       geometry.translate(tx, ty, tz);
       if (geometry.userData && Array.isArray(geometry.userData.connectors)) {
         geometry.userData.connectors = geometry.userData.connectors.map(([x = 0, y = 0, z = 0]) => [x + tx, y + ty, z + tz]);
-        baseWeaponConnector = geometry.userData.connectors[0];
-      } else {
-        baseWeaponConnector = null;
       }
       geometry.computeBoundingBox();
       weaponTop = geometry.boundingBox.max.y;
