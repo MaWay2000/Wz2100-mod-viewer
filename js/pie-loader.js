@@ -107,7 +107,8 @@ async function render(canvas, url, options={}){
   const mesh = new THREE.Mesh(geometry, material);
   geometry.computeBoundingSphere();
   if(geometry.boundingSphere){
-    const s = 40/geometry.boundingSphere.radius;
+    const zoom = (typeof options.zoom === 'number') ? options.zoom : 1;
+    const s = 40 * zoom / geometry.boundingSphere.radius;
     mesh.scale.setScalar(s);
     mesh.position.set(
       -geometry.boundingSphere.center.x*s,
