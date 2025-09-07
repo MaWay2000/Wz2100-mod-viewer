@@ -372,7 +372,8 @@ tr:hover td{ background:#0e141c; }
       name = name.replace(/^\[\"']+|[\\"']+$/g,'');
       const parts = name.split(/[\\/]/);
       const last = parts[parts.length-1];
-      if (/\.pie$/i.test(last)) {
+      const base = last.split('#')[0];
+      if (/\.pie$/i.test(base)) {
         const full = prefix + last;
         if (!out.includes(full)) out.push(full);
       }
@@ -391,7 +392,9 @@ tr:hover td{ background:#0e141c; }
     if (sensorId != null) {
       const s = sensorMap.get(String(sensorId));
       if (s) {
-        ['mountModel','sensorModel'].forEach(f => add(s[f]));
+        ['mountModel','sensorModel'].forEach(f => {
+          if (s[f]) add(String(s[f]) + '#stack');
+        });
       }
     }
     // include weapon models referenced by structures
