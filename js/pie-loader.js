@@ -89,7 +89,8 @@ async function render(canvas, url, options={}){
   renderer.setSize(w*dpr, h*dpr, false);
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(45, w/h, 0.1, 1000);
-  camera.position.set(0,0,100);
+  camera.position.set(0,70,70);
+  camera.lookAt(0,0,0);
   scene.add(new THREE.HemisphereLight(0xffffff,0x444444,1));
   const materialOptions = { color:0xdddddd };
   if(geometry.userData.texture){

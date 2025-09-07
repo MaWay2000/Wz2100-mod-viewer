@@ -13,7 +13,8 @@ export async function renderPieThumbnail(container, fileOrText) {
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(50, w/h, 0.1, 100);
-  camera.position.set(0, 0.6, 2.0);
+  camera.position.set(0, 1.5, 1.5);
+  camera.lookAt(0, 0, 0);
 
   const hemi = new THREE.HemisphereLight(0xffffff, 0x404040, 0.9);
   scene.add(hemi);
