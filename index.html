@@ -50,12 +50,8 @@ tr:hover td{ background:#0e141c; }
 </head>
 <body>
 
-<script type="module">
-  import "./js/three.module.js";
-  import "./js/pie.js";
-  import "./js/piePreview.js";
-  import "./js/piePreview-init.js";
-</script>
+<!-- Loader for PIE previews and Three.js helpers -->
+
 
 <header>
   <h1>WZ Stats Viewer</h1>
@@ -100,15 +96,27 @@ tr:hover td{ background:#0e141c; }
     </div>
   </div>
 </div>
-<script>
+<script type="module">
+  import "./js/three.module.js";
+  import "./js/pie.js";
+  import "./js/piePreview.js";
+  import "./js/piePreview-init.js";
+  import "./js/pie-loader.js";
+
   const pieOverlay = null;
-  function resolvePieUrl(filename){
+  async function resolvePieUrl(filename){
     const roots = ['components','structs','structures','effects','models','base'];
-    for (const r of roots){ return `${r}/${filename}`; }
+    for (const r of roots){
+      const url = `${r}/${filename}`;
+      try {
+        const res = await fetch(url, { method: 'HEAD' });
+        if (res.ok) return url;
+      } catch (_) {}
+    }
     return filename;
   }
   async function renderPieToCanvas(canvas, pieFile){
-    const url = resolvePieUrl(pieFile);
+    const url = await resolvePieUrl(pieFile);
     try {
       if (window.WZPIE && typeof WZPIE.renderToCanvas === 'function') {
         await WZPIE.renderToCanvas(canvas, url, { background:'#0a0f14' });
