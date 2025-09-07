@@ -83,7 +83,12 @@ async function render(canvas, url, options={}){
   }
   const urls = Array.isArray(url) ? url : [url];
   const geometries = [];
-  for (const u of urls){ geometries.push(await loadPieGeometry(u)); }
+  for (const u of urls){
+    // keep track of source url alongside loaded geometry so we can apply
+    // special positioning rules based on where the model comes from
+    const g = await loadPieGeometry(u);
+    geometries.push({ geometry: g, url: u });
+  }
   const dpr = window.devicePixelRatio || 1;
   const w = canvas.clientWidth || 96;
   const h = canvas.clientHeight || 96;
@@ -96,7 +101,8 @@ async function render(canvas, url, options={}){
   scene.add(new THREE.HemisphereLight(0xffffff,0x444444,1));
   const group = new THREE.Group();
   const box = new THREE.Box3();
-  for (const geometry of geometries){
+  let baseBox = null;
+  for (const { geometry, url: geomUrl } of geometries){
     const materialOptions = { color:0xdddddd };
     if(geometry.userData.texture){
       try {
@@ -112,6 +118,18 @@ async function render(canvas, url, options={}){
     const material = new THREE.MeshStandardMaterial(materialOptions);
     const mesh = new THREE.Mesh(geometry, material);
     geometry.computeBoundingBox();
+    if (!baseBox) {
+      // first geometry acts as the base; remember its bounding box so
+      // subsequent pieces can be positioned relative to it
+      baseBox = geometry.boundingBox.clone();
+    } else if (geomUrl && /components\/weapons\//i.test(geomUrl)) {
+      // Weapon models are authored with their origin at ground level.
+      // When rendering a structure + weapon combo, push weapon geometry
+      // upwards so its bottom sits on top of the base model.
+      const offset = baseBox.max.y - geometry.boundingBox.min.y;
+      geometry.translate(0, offset, 0);
+      geometry.computeBoundingBox();
+    }
     // three.js's Box3 doesn't have an `expandByBox3` method. The
     // `union` method expands the current box to include the provided
     // box, which is what we want here to encompass all geometry
