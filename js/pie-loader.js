@@ -112,7 +112,11 @@ async function render(canvas, url, options={}){
     const material = new THREE.MeshStandardMaterial(materialOptions);
     const mesh = new THREE.Mesh(geometry, material);
     geometry.computeBoundingBox();
-    if (geometry.boundingBox) box.expandByBox3(geometry.boundingBox);
+    // three.js's Box3 doesn't have an `expandByBox3` method. The
+    // `union` method expands the current box to include the provided
+    // box, which is what we want here to encompass all geometry
+    // bounding boxes.
+    if (geometry.boundingBox) box.union(geometry.boundingBox);
     group.add(mesh);
   }
   // center and scale group
