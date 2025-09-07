@@ -169,16 +169,15 @@ async function render(canvas, url, options={}){
       let tx = 0, ty = 0, tz = 0;
       if (geometry.userData && Array.isArray(geometry.userData.connectors) && geometry.userData.connectors.length) {
         const [cx = 0, cy = 0, cz = 0] = geometry.userData.connectors[0];
-        let bcx = 0, bcz = 0;
+        let bcx = 0, bcy = weaponTop != null ? weaponTop : baseY, bcz = 0;
         if (baseWeaponConnector) {
           bcx = baseWeaponConnector[0] || 0;
+          bcy = baseWeaponConnector[1] || bcy;
           bcz = baseWeaponConnector[2] || 0;
         }
         tx = bcx - cx;
+        ty = bcy - cy;
         tz = bcz - cz;
-        const refY = weaponTop != null ? weaponTop : baseY;
-        const offset = refY - geometry.boundingBox.min.y;
-        ty = offset;
       } else {
         const refY = weaponTop != null ? weaponTop : baseY;
         const offset = refY - geometry.boundingBox.min.y;
