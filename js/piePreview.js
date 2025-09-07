@@ -24,7 +24,7 @@ export function configurePieBase(baseUrl) {
  */
 export async function renderPieIntoCanvas(canvas, piePath, options = {}) {
   if (!canvas) return false;
-  const url = String(piePath || '').trim();
+  const url = Array.isArray(piePath) ? piePath.map(p => String(p || '').trim()) : String(piePath || '').trim();
   const viewer = (typeof window !== 'undefined') && (window.PieMiniViewer || window.PIELoader);
   try {
     if (viewer && typeof viewer.render === 'function') {
@@ -42,7 +42,7 @@ export async function renderPieIntoCanvas(canvas, piePath, options = {}) {
   ctx.fillStyle = '#9fc3ff';
   ctx.font = '10px system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif';
   ctx.globalAlpha = 0.85;
-  const label = (url ? (url.split('/').pop()) : 'PIE');
+  const label = Array.isArray(url) ? (url[0] ? url[0].split('/').pop() : 'PIE') : (url.split('/').pop());
   ctx.fillText(label, 6, 14);
   ctx.globalAlpha = 1;
   return false;

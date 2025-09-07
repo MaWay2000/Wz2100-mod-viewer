@@ -117,12 +117,20 @@ tr:hover td{ background:#0e141c; }
     piePopup.classList.remove('hidden');
     piePopup.setAttribute('aria-busy','true');
     try {
-      await renderPieToCanvas(piePopupCanvas, pieFile);
+      let files = pieFile;
+      if (typeof files === 'string') { try { files = JSON.parse(files); } catch(_) { files = [files]; } }
+      if (!Array.isArray(files)) files = [files];
+      await renderPieToCanvas(piePopupCanvas, files);
     } finally {
       piePopup.removeAttribute('aria-busy');
     }
   }
   async function resolvePieUrl(filename){
+    if (Array.isArray(filename)) {
+      const out = [];
+      for (const f of filename) out.push(await resolvePieUrl(f));
+      return out;
+    }
     filename = String(filename || '').toLowerCase();
     // Search order for PIE assets. Structures now live in /structs, while
     // weapon, body and propulsion models are under their respective
@@ -145,7 +153,8 @@ tr:hover td{ background:#0e141c; }
     return filename;
   }
   async function renderPieToCanvas(canvas, pieFile){
-    const url = await resolvePieUrl(pieFile);
+    const files = Array.isArray(pieFile) ? pieFile : [pieFile];
+    const url = await resolvePieUrl(files);
     try {
       if (window.WZPIE && typeof WZPIE.renderToCanvas === 'function') {
         await WZPIE.renderToCanvas(canvas, url, { background:'#0a0f14', zoom:0.5 });
@@ -161,7 +170,8 @@ tr:hover td{ background:#0e141c; }
       }
     } catch(e){ console.error('PIE render error:', e); }
     const ctx = canvas.getContext('2d'); ctx.fillStyle = '#0a0f14'; ctx.fillRect(0,0,canvas.width,canvas.height);
-    ctx.fillStyle = '#9fc3ff'; ctx.font = '11px system-ui, sans-serif'; ctx.fillText('PIE?', 6, 18);
+    const label = Array.isArray(files) ? String(files[0]) : String(files);
+    ctx.fillStyle = '#9fc3ff'; ctx.font = '11px system-ui, sans-serif'; ctx.fillText(label.split('/').pop(), 6, 18);
     return false;
   }
 
@@ -254,6 +264,8 @@ tr:hover td{ background:#0e141c; }
   function pickPrefer(keys, preferred){ const set = new Set(keys); const out = []; (preferred||[]).forEach(k => { if (set.has(k)) { out.push(k); set.delete(k); } }); return out.concat(Array.from(set).sort()); }
 
   const tabs = { structures: normalizeRows(BOOTSTRAP.structures, 'structures'), weapons: normalizeRows(BOOTSTRAP.weapons, 'weapons') };
+  const weaponMap = new Map();
+  (tabs.weapons || []).forEach(w => { const id = (w && w.id !== undefined) ? String(w.id) : null; if (id) weaponMap.set(id, w); });
   const baseline = { structures: normalizeRows(BOOTSTRAP.baseline && BOOTSTRAP.baseline.structures, 'structures'), weapons: normalizeRows(BOOTSTRAP.baseline && BOOTSTRAP.baseline.weapons, 'weapons') };
   const diffs = { structures: diffRows(tabs.structures, baseline.structures), weapons: diffRows(tabs.weapons, baseline.weapons) };
 
@@ -322,28 +334,37 @@ tr:hover td{ background:#0e141c; }
   }
   function getOldRaw(row, label){ if (!row || !row.__old) return undefined; const list = (columnLookup[label] || [label]); for (const key of list){ if (Object.prototype.hasOwnProperty.call(row.__old, key)) return row.__old[key]; } return row.__old[label]; }
 
-  // Extract pie filenames from common fields on a row
+  // Extract pie filenames from common fields on a row and referenced weapons
   function extractPieNames(row){
     if (!row || typeof row !== 'object') return [];
     const fields = ['baseModel','basemodel','structureModel','structuremodel','model','modelFile','weaponsModel','turretModel'];
     const out = [];
+    const add = (s) => {
+      if (!s) return;
+      let name = String(s).trim().replace(/^\[|\]$/g,'');
+      name = name.replace(/^\[\"']+|[\\"']+$/g,'');
+      const parts = name.split(/[\\/]/);
+      const last = parts[parts.length-1];
+      if (/\.pie$/i.test(last) && !out.includes(last)) out.push(last);
+    };
     for (const f of fields){
       if (row[f] === undefined) continue;
       const v = row[f];
-      const add = (s) => {
-        if (!s) return;
-        let name = String(s).trim().replace(/^\[|\]$/g,'');
-        name = name.replace(/^\[\"']+|[\\"']+$/g,'');
-        const parts = name.split(/[\\/]/);
-        const last = parts[parts.length-1];
-        if (/\.pie$/i.test(last) && !out.includes(last)) out.push(last);
-      };
       if (Array.isArray(v)) v.forEach(add);
       else if (typeof v === 'string') {
         try { const arr = JSON.parse(v); if (Array.isArray(arr)) arr.forEach(add); else add(v); }
         catch(e){ add(v); }
       } else { add(v); }
     }
+    // include weapon models referenced by structures
+    const weaponIds = row.weapons;
+    const list = Array.isArray(weaponIds) ? weaponIds : (weaponIds !== undefined ? [weaponIds] : []);
+    list.forEach(id => {
+      if (id == null) return;
+      const w = weaponMap.get(String(id));
+      if (!w) return;
+      ['model','mountModel','baseModel','basemodel','barrelModel','turretModel'].forEach(f => add(w[f]));
+    });
     return out;
   }
 
@@ -403,7 +424,7 @@ tr:hover td{ background:#0e141c; }
           td.appendChild(label);
           if (pies.length){
             label.classList.add('pie-link');
-            label.dataset.pie = pies[0];
+            try { label.dataset.pie = JSON.stringify(pies); } catch(_) { label.dataset.pie = pies[0]; }
           }
         } else if (diffMode() && r.__delta === 'changed' && oldCandidate !== undefined) {
           const oldVal = toCell(oldCandidate);
