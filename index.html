@@ -132,6 +132,8 @@ tr:hover td{ background:#0e141c; }
         return out;
       }
       filename = String(filename || '').toLowerCase();
+      // PIE assets live directly under /pies; strip any path components.
+      filename = filename.replace(/^.*[\\\/]/, '');
       const url = `pies/${filename}`;
       try {
         const res = await fetch(url, { method: 'HEAD' });
