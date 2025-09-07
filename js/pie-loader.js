@@ -122,7 +122,7 @@ async function render(canvas, url, options={}){
       // first geometry acts as the base; remember its bounding box so
       // subsequent pieces can be positioned relative to it
       baseBox = geometry.boundingBox.clone();
-    } else if (geomUrl && /components\/weapons\//i.test(geomUrl)) {
+    } else if (geomUrl && (/components\/weapons\//i.test(geomUrl) || /#weapon\b/i.test(geomUrl))) {
       // Weapon models are authored with their origin at ground level.
       // When rendering a structure + weapon combo, push weapon geometry
       // upwards so its bottom sits on top of the base model.
