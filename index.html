@@ -326,13 +326,16 @@ tr:hover td{ background:#0e141c; }
     if (!row || typeof row !== 'object') return [];
     const fields = ['baseModel','basemodel','structureModel','structuremodel','model','modelFile','weaponsModel','turretModel'];
     const out = [];
-    const add = (s) => {
+    const add = (s, prefix = '') => {
       if (!s) return;
       let name = String(s).trim().replace(/^\[|\]$/g,'');
       name = name.replace(/^\[\"']+|[\\"']+$/g,'');
       const parts = name.split(/[\\/]/);
       const last = parts[parts.length-1];
-      if (/\.pie$/i.test(last) && !out.includes(last)) out.push(last);
+      if (/\.pie$/i.test(last)) {
+        const full = prefix + last;
+        if (!out.includes(full)) out.push(full);
+      }
     };
     for (const f of fields){
       if (row[f] === undefined) continue;
@@ -351,7 +354,7 @@ tr:hover td{ background:#0e141c; }
       const w = weaponMap.get(String(id));
       if (!w) return;
       // ensure base/mount models load before weapon model so weapons sit atop mounts
-      ['mountModel','baseModel','basemodel','model','barrelModel','turretModel'].forEach(f => add(w[f]));
+      ['mountModel','baseModel','basemodel','model','barrelModel','turretModel'].forEach(f => add(w[f], 'components/weapons/'));
     });
     return out;
   }
