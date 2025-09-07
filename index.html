@@ -58,7 +58,7 @@ tr:hover td{ background:#0e141c; }
 <header>
   <h1>WZ Stats Viewer</h1>
   <span class="badge" id="sourceBadge">Source: local ./stats</span>
-  <input type="file" id="uploadInput" style="display:none" />
+  <input type="file" id="uploadInput" accept=".json,.wz,.zip" style="display:none" />
   <label for="uploadInput" class="btn" id="uploadBtn">Upload</label>
 </header>
 
@@ -447,15 +447,65 @@ tr:hover td{ background:#0e141c; }
   searchInput.addEventListener('input', renderBody);
   clearBtn.addEventListener('click', () => { searchInput.value=''; renderBody(); });
 
+  async function extractZipText(buffer, filename){
+    const dv = new DataView(buffer);
+    let offset = 0;
+    const sig = 0x04034b50;
+    while (offset + 30 < dv.byteLength && dv.getUint32(offset, true) === sig){
+      offset += 4;
+      offset += 2; // version
+      const flags = dv.getUint16(offset, true); offset += 2;
+      const compression = dv.getUint16(offset, true); offset += 2;
+      offset += 8; // times + crc32
+      const compSize = dv.getUint32(offset, true); offset += 4;
+      const uncompSize = dv.getUint32(offset, true); offset += 4;
+      const nameLen = dv.getUint16(offset, true); offset += 2;
+      const extraLen = dv.getUint16(offset, true); offset += 2;
+      const name = new TextDecoder().decode(new Uint8Array(buffer, offset, nameLen));
+      offset += nameLen + extraLen;
+      const data = buffer.slice(offset, offset + compSize);
+      offset += compSize;
+      if (name === filename){
+        if (compression === 0){
+          return new TextDecoder().decode(data);
+        } else if (compression === 8){
+          const ds = new DecompressionStream('deflate-raw');
+          const decompressed = await new Response(new Blob([data]).stream().pipeThrough(ds)).arrayBuffer();
+          return new TextDecoder().decode(decompressed);
+        } else {
+          throw new Error('Unsupported compression method '+compression);
+        }
+      }
+    }
+    throw new Error('Missing '+filename+' in archive');
+  }
+
+  async function parseUploadedFile(f){
+    const name = f.name.toLowerCase();
+    if (name.endsWith('.json')){
+      let text = await f.text();
+      if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+      return JSON.parse(text);
+    } else if (name.endsWith('.wz') || name.endsWith('.zip')){
+      const buf = await f.arrayBuffer();
+      const structText = await extractZipText(buf, 'stats/structure.json').catch(()=>extractZipText(buf,'stats/structures.json'));
+      const weaponText = await extractZipText(buf, 'stats/weapons.json');
+      const structuresData = JSON.parse(structText);
+      const weaponsData = JSON.parse(weaponText);
+      const structures = Array.isArray(structuresData) ? structuresData : (structuresData.structures ? structuresData.structures : Object.values(structuresData));
+      const weapons = Array.isArray(weaponsData) ? weaponsData : (weaponsData.weapons ? weaponsData.weapons : Object.values(weaponsData));
+      return { structures, weapons };
+    }
+    throw new Error('Unsupported file type');
+  }
+
   const uploadInput = document.getElementById('uploadInput');
   if (uploadInput){
     uploadInput.addEventListener('change', async () => {
       const f = uploadInput.files && uploadInput.files[0];
       if (!f) return;
       try{
-        let text = await f.text();
-        if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
-        const data = JSON.parse(text);
+        const data = await parseUploadedFile(f);
         const baseStructs = await loadJSON('stats/structure.json');
         const baseWeapons = await loadJSON('stats/weapons.json');
         const store = {
