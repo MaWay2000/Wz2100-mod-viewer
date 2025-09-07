@@ -135,6 +135,7 @@ async function render(canvas, url, options={}){
   let baseTop = null;      // top of the base structure
   let weaponTop = null;    // top of the current weapon stack
   let stackTop = null;     // top of the current generic stack
+  let baseWeaponConnector = null; // connector on the base for weapon alignment
   for (const { geometry, url: geomUrl } of geometries){
     const materialOptions = { color:0xdddddd };
     if(geometry.userData.texture){
@@ -158,13 +159,21 @@ async function render(canvas, url, options={}){
       baseTop = baseBox.max.y;
       weaponTop = baseTop;
       stackTop = baseTop;
+      if (geometry.userData && Array.isArray(geometry.userData.connectors) && geometry.userData.connectors.length) {
+        baseWeaponConnector = geometry.userData.connectors[0];
+      }
     } else if (geomUrl && /#weapon\b/i.test(geomUrl)) {
       // Weapon components are positioned using connector data when available;
       // fall back to stacking behavior otherwise.
       const baseY = baseTop != null ? baseTop : 0;
       if (geometry.userData && Array.isArray(geometry.userData.connectors) && geometry.userData.connectors.length) {
         const [cx = 0, cy = 0, cz = 0] = geometry.userData.connectors[0];
-        geometry.translate(-cx, baseY - cy, -cz);
+        if (baseWeaponConnector) {
+          const [bcx = 0, bcy = baseY, bcz = 0] = baseWeaponConnector;
+          geometry.translate(bcx - cx, bcy - cy, bcz - cz);
+        } else {
+          geometry.translate(-cx, baseY - cy, -cz);
+        }
       } else {
         const refY = weaponTop != null ? weaponTop : baseY;
         const offset = refY - geometry.boundingBox.min.y;
