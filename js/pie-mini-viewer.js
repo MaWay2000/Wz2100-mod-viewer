@@ -1,5 +1,5 @@
 // pie-mini-viewer.js — render tiny PIE thumbnails into given container
-import * as THREE from "./three.module.js";
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.171.0/build/three.module.js";
 import { parsePie } from "./pie.js";
 
 // Some environments fail to provide shader precision info, returning `null`.

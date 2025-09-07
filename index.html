@@ -104,7 +104,8 @@ tr:hover td{ background:#0e141c; }
   <canvas width="400" height="400"></canvas>
 </div>
 <script type="module">
-  import "./js/three.module.js";
+  import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.171.0/build/three.module.js";
+  window.THREE = THREE;
   import "./js/pie.js";
   import "./js/piePreview.js";
   import "./js/piePreview-init.js";
