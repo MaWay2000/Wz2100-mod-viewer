@@ -148,7 +148,7 @@ tr:hover td{ background:#0e141c; }
     const url = await resolvePieUrl(pieFile);
     try {
       if (window.WZPIE && typeof WZPIE.renderToCanvas === 'function') {
-        await WZPIE.renderToCanvas(canvas, url, { background:'#0a0f14' });
+        await WZPIE.renderToCanvas(canvas, url, { background:'#0a0f14', zoom:0.5 });
         return true;
       }
       if (window.renderPieModel && typeof window.renderPieModel === 'function') {
@@ -156,7 +156,7 @@ tr:hover td{ background:#0e141c; }
         return true;
       }
       if (window.PIELoader && typeof window.PIELoader.render === 'function') {
-        await window.PIELoader.render(canvas, url);
+        await window.PIELoader.render(canvas, url, { zoom:0.5 });
         return true;
       }
     } catch(e){ console.error('PIE render error:', e); }
