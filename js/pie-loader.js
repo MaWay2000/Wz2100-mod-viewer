@@ -81,7 +81,9 @@ async function render(canvas, url, options={}){
     canvas.replaceWith(document.createTextNode('WebGL not supported'));
     return;
   }
-  const geometry = await loadPieGeometry(url);
+  const urls = Array.isArray(url) ? url : [url];
+  const geometries = [];
+  for (const u of urls){ geometries.push(await loadPieGeometry(u)); }
   const dpr = window.devicePixelRatio || 1;
   const w = canvas.clientWidth || 96;
   const h = canvas.clientHeight || 96;
@@ -92,35 +94,41 @@ async function render(canvas, url, options={}){
   camera.position.set(0,70,70);
   camera.lookAt(0,0,0);
   scene.add(new THREE.HemisphereLight(0xffffff,0x444444,1));
-  const materialOptions = { color:0xdddddd };
-  if(geometry.userData.texture){
-    try {
-      const texUrl = resolveTextureUrl('texpages/' + geometry.userData.texture);
-      const loader = new THREE.TextureLoader();
-      const tex = await loader.loadAsync(texUrl);
-      tex.flipY = false;
-      materialOptions.map = tex;
-    } catch(e){
-      console.error('Failed to load texture', e);
+  const group = new THREE.Group();
+  const box = new THREE.Box3();
+  for (const geometry of geometries){
+    const materialOptions = { color:0xdddddd };
+    if(geometry.userData.texture){
+      try {
+        const texUrl = resolveTextureUrl('texpages/' + geometry.userData.texture);
+        const loader = new THREE.TextureLoader();
+        const tex = await loader.loadAsync(texUrl);
+        tex.flipY = false;
+        materialOptions.map = tex;
+      } catch(e){
+        console.error('Failed to load texture', e);
+      }
     }
+    const material = new THREE.MeshStandardMaterial(materialOptions);
+    const mesh = new THREE.Mesh(geometry, material);
+    geometry.computeBoundingBox();
+    if (geometry.boundingBox) box.expandByBox3(geometry.boundingBox);
+    group.add(mesh);
   }
-  const material = new THREE.MeshStandardMaterial(materialOptions);
-  const mesh = new THREE.Mesh(geometry, material);
-  geometry.computeBoundingSphere();
-  if(geometry.boundingSphere){
-    const zoom = (typeof options.zoom === 'number') ? options.zoom : 1;
-    const s = 40 * zoom / geometry.boundingSphere.radius;
-    mesh.scale.setScalar(s);
-    mesh.position.set(
-      -geometry.boundingSphere.center.x*s,
-      -geometry.boundingSphere.center.y*s,
-      -geometry.boundingSphere.center.z*s
-    );
-  }
-  scene.add(mesh);
+  // center and scale group
+  const size = new THREE.Vector3();
+  const center = new THREE.Vector3();
+  box.getSize(size);
+  box.getCenter(center);
+  const radius = size.length() / 2 || 1;
+  const zoom = (typeof options.zoom === 'number') ? options.zoom : 1;
+  const s = 40 * zoom / radius;
+  group.scale.setScalar(s);
+  group.position.set(-center.x*s, -center.y*s, -center.z*s);
+  scene.add(group);
   function animate(){
     requestAnimationFrame(animate);
-    mesh.rotation.y += 0.005;
+    group.rotation.y += 0.005;
     renderer.render(scene, camera);
   }
   animate();
