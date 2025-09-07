@@ -191,11 +191,9 @@
 	"ZNULLSENSOR": {
 		"id": "ZNULLSENSOR",
 		"location": "DEFAULT",
-		"mountModel": "trlsnsr1.PIE",
-		"name": "Z NULL SENSOR",
-		"power": 500,
-		"range": 1024,
-		"sensorModel": "gnlsnsr1.PIE",
-		"type": "STANDARD"
-	}
+                "name": "Z NULL SENSOR",
+                "power": 500,
+                "range": 1024,
+                "type": "STANDARD"
+        }
 }
