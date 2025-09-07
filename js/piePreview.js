@@ -36,6 +36,7 @@ export async function renderPieIntoCanvas(canvas, piePath, options = {}) {
   }
   // Fallback placeholder
   const ctx = canvas.getContext('2d');
+  if (!ctx) return false;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.fillStyle = '#0b1220';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
