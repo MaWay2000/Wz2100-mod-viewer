@@ -125,37 +125,20 @@ tr:hover td{ background:#0e141c; }
       piePopup.removeAttribute('aria-busy');
     }
   }
-  async function resolvePieUrl(filename){
-    if (Array.isArray(filename)) {
-      const out = [];
-      for (const f of filename) out.push(await resolvePieUrl(f));
-      return out;
-    }
-    filename = String(filename || '').toLowerCase();
-    // Search order for PIE assets. Structures now live in /structs, while
-    // weapon, body and propulsion models are under their respective
-    // subdirectories inside /components.
-    // Weapon models live under /components/weapons, while structures
-    // are found in /structs. Check the weapon path first so that the
-    // Weapons tab does not try to load files from the structures
-    // directory.
-    const roots = [
-      'components/weapons',
-      'structs',
-      'components/bodies',
-      'components/prop',
-      'components',
-      'structures'
-    ];
-    for (const r of roots){
-      const url = `${r}/${filename}`;
+    async function resolvePieUrl(filename){
+      if (Array.isArray(filename)) {
+        const out = [];
+        for (const f of filename) out.push(await resolvePieUrl(f));
+        return out;
+      }
+      filename = String(filename || '').toLowerCase();
+      const url = `pies/${filename}`;
       try {
         const res = await fetch(url, { method: 'HEAD' });
         if (res.ok) return url;
       } catch (_) {}
+      return filename;
     }
-    return filename;
-  }
   async function renderPieToCanvas(canvas, pieFile){
     const files = Array.isArray(pieFile) ? pieFile : [pieFile];
     const url = await resolvePieUrl(files);

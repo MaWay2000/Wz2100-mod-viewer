@@ -16,5 +16,11 @@ window.WZPIE.renderToCanvas = renderPieIntoCanvas;
 // <meta name="pie-base" content="/assets/">; we apply it here.
 try {
   const meta = document.querySelector('meta[name="pie-base"][content]');
-  if (meta && meta.content) configurePieBase(meta.content);
-} catch (_) {}
+  if (meta && meta.content) {
+    configurePieBase(meta.content);
+  } else {
+    configurePieBase('/pies');
+  }
+} catch (_) {
+  configurePieBase('/pies');
+}
