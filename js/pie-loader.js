@@ -95,7 +95,7 @@ async function render(canvas, url, options={}){
     canvas.replaceWith(document.createTextNode('WebGL not supported'));
     return;
   }
-  // clean up any previous renderer/animation attached to this canvas
+  // clean up any previous animation attached to this canvas
   if (canvas.__wzCleanup) {
     try { canvas.__wzCleanup(); } catch (_) {}
     delete canvas.__wzCleanup;
@@ -122,7 +122,6 @@ async function render(canvas, url, options={}){
   const group = new THREE.Group();
   const box = new THREE.Box3();
   let baseBox = null;
-  const disposables = [];
   for (const { geometry, url: geomUrl } of geometries){
     const materialOptions = { color:0xdddddd };
     if(geometry.userData.texture){
@@ -132,7 +131,6 @@ async function render(canvas, url, options={}){
         const tex = await loader.loadAsync(texUrl);
         tex.flipY = false;
         materialOptions.map = tex;
-        disposables.push(tex);
       } catch(e){
         console.error('Failed to load texture', e);
       }
@@ -158,7 +156,6 @@ async function render(canvas, url, options={}){
     // bounding boxes.
     if (geometry.boundingBox) box.union(geometry.boundingBox);
     group.add(mesh);
-    disposables.push(geometry, material);
   }
   // center and scale group
   const size = new THREE.Vector3();
@@ -179,12 +176,9 @@ async function render(canvas, url, options={}){
   }
   animate();
 
-  // attach cleanup so subsequent renders can dispose of resources
+  // attach cleanup so subsequent renders can stop the animation
   canvas.__wzCleanup = () => {
     cancelAnimationFrame(frameId);
-    disposables.forEach(d => d && typeof d.dispose === 'function' && d.dispose());
-    renderer.dispose();
-    try { renderer.forceContextLoss(); } catch(_) {}
   };
 }
 
