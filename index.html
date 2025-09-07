@@ -178,6 +178,15 @@ tr:hover td{ background:#0e141c; }
     const name = BOOTSTRAP.meta.filename ? ` ${BOOTSTRAP.meta.filename}` : ' ./stats';
     sourceBadge.textContent = `Source: ${BOOTSTRAP.meta.source}${name}`;
   }
+  const uploadBtn = document.getElementById('uploadBtn');
+  if (uploadBtn && BOOTSTRAP && BOOTSTRAP.meta && BOOTSTRAP.meta.source === 'upload'){
+    uploadBtn.textContent = 'Reset';
+    uploadBtn.removeAttribute('for');
+    uploadBtn.addEventListener('click', () => {
+      localStorage.removeItem(UPLOAD_KEY);
+      location.reload();
+    });
+  }
   function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;').replace(/'/g,'&#39;'); }
   const isNumber = (v) => typeof v === 'number' || (typeof v === 'string' && v.trim() !== '' && !isNaN(Number(v)));
   const toCell = (v) => (v===null||v===undefined) ? '' : (typeof v === 'object' ? JSON.stringify(v) : String(v));
