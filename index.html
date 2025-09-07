@@ -421,10 +421,21 @@ tr:hover td{ background:#0e141c; }
   if (filtersBtn){
     filtersBtn.addEventListener('click', () => {
       filtersPanel.classList.toggle('hidden');
-      if (!filtersPanel.classList.contains('hidden')) rebuildFiltersPanel();
+      const active = !filtersPanel.classList.contains('hidden');
+      filtersBtn.classList.toggle('active', active);
+      filtersBtn.textContent = active ? 'Hide filters' : 'Show filters';
+      if (active) rebuildFiltersPanel();
     });
   }
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && filtersPanel && !filtersPanel.classList.contains('hidden')) filtersPanel.classList.add('hidden'); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && filtersPanel && !filtersPanel.classList.contains('hidden')) {
+      filtersPanel.classList.add('hidden');
+      if (filtersBtn){
+        filtersBtn.classList.remove('active');
+        filtersBtn.textContent = 'Show filters';
+      }
+    }
+  });
   filtersSelectAll && filtersSelectAll.addEventListener('click', () => { columnSelections[selectionKey()] = currentAllCols(); saveSelections(); buildCols(); renderHeader(); renderBody(); rebuildFiltersPanel(); });
   filtersSelectDefault && filtersSelectDefault.addEventListener('click', () => { columnSelections[selectionKey()] = getDefaultCols(); saveSelections(); buildCols(); renderHeader(); renderBody(); rebuildFiltersPanel(); });
   filtersChangedOnly && filtersChangedOnly.addEventListener('click', () => {
