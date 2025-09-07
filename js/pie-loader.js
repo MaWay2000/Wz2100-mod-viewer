@@ -122,7 +122,10 @@ async function render(canvas, url, options={}){
   const group = new THREE.Group();
   const box = new THREE.Box3();
   let baseBox = null;
-  let topY = null;
+  // Track separate stack heights for weapons (#weapon) and generic stacks (#stack)
+  let baseTop = null;      // top of the base structure
+  let weaponTop = null;    // top of the current weapon stack
+  let stackTop = null;     // top of the current generic stack
   for (const { geometry, url: geomUrl } of geometries){
     const materialOptions = { color:0xdddddd };
     if(geometry.userData.texture){
@@ -143,20 +146,30 @@ async function render(canvas, url, options={}){
       // first geometry acts as the base; remember its bounding box so
       // subsequent pieces can be positioned relative to it
       baseBox = geometry.boundingBox.clone();
-      topY = baseBox.max.y;
-    } else if (geomUrl && /#(weapon|stack)\b/i.test(geomUrl)) {
-      // Additional components are authored with their origin at ground level.
-      // Stack them so their bottom sits on top of the previous piece.
-      const refY = topY != null ? topY : baseBox.max.y;
+      baseTop = baseBox.max.y;
+      weaponTop = baseTop;
+      stackTop = baseTop;
+    } else if (geomUrl && /#weapon\b/i.test(geomUrl)) {
+      // Weapon components stack on top of each other
+      const refY = weaponTop != null ? weaponTop : baseTop;
       const offset = refY - geometry.boundingBox.min.y;
       geometry.translate(0, offset, 0);
       geometry.computeBoundingBox();
-      topY = geometry.boundingBox.max.y;
+      weaponTop = geometry.boundingBox.max.y;
+    } else if (geomUrl && /#stack\b/i.test(geomUrl)) {
+      // Generic stack components (eg sensors) stack independently from weapons
+      const refY = stackTop != null ? stackTop : baseTop;
+      const offset = refY - geometry.boundingBox.min.y;
+      geometry.translate(0, offset, 0);
+      geometry.computeBoundingBox();
+      stackTop = geometry.boundingBox.max.y;
     } else {
-      // part of the base structure; update topY if this piece extends higher
+      // Part of the base structure; update base/top references accordingly
       if (geometry.boundingBox && geometry.boundingBox.max) {
         const ymax = geometry.boundingBox.max.y;
-        if (topY == null || ymax > topY) topY = ymax;
+        if (baseTop == null || ymax > baseTop) baseTop = ymax;
+        weaponTop = baseTop;
+        stackTop = baseTop;
       }
     }
     // three.js's Box3 doesn't have an `expandByBox3` method. The
