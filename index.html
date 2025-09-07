@@ -58,7 +58,7 @@ tr:hover td{ background:#0e141c; }
 <header>
   <h1>WZ Stats Viewer</h1>
   <span class="badge" id="sourceBadge">Source: local ./stats</span>
-  <input type="file" id="uploadInput" accept=".json,.wz,.zip" style="display:none" />
+  <input type="file" id="uploadInput" style="display:none" />
   <label for="uploadInput" class="btn" id="uploadBtn">Upload</label>
 </header>
 
@@ -481,22 +481,24 @@ tr:hover td{ background:#0e141c; }
   }
 
   async function parseUploadedFile(f){
-    const name = f.name.toLowerCase();
-    if (name.endsWith('.json')){
-      let text = await f.text();
+    const buf = await f.arrayBuffer();
+    try {
+      let text = new TextDecoder().decode(buf);
       if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
       return JSON.parse(text);
-    } else if (name.endsWith('.wz') || name.endsWith('.zip')){
-      const buf = await f.arrayBuffer();
-      const structText = await extractZipText(buf, 'stats/structure.json').catch(()=>extractZipText(buf,'stats/structures.json'));
-      const weaponText = await extractZipText(buf, 'stats/weapons.json');
-      const structuresData = JSON.parse(structText);
-      const weaponsData = JSON.parse(weaponText);
-      const structures = Array.isArray(structuresData) ? structuresData : (structuresData.structures ? structuresData.structures : Object.values(structuresData));
-      const weapons = Array.isArray(weaponsData) ? weaponsData : (weaponsData.weapons ? weaponsData.weapons : Object.values(weaponsData));
-      return { structures, weapons };
+    } catch (e) {
+      try {
+        const structText = await extractZipText(buf, 'stats/structure.json').catch(()=>extractZipText(buf,'stats/structures.json'));
+        const weaponText = await extractZipText(buf, 'stats/weapons.json');
+        const structuresData = JSON.parse(structText);
+        const weaponsData = JSON.parse(weaponText);
+        const structures = Array.isArray(structuresData) ? structuresData : (structuresData.structures ? structuresData.structures : Object.values(structuresData));
+        const weapons = Array.isArray(weaponsData) ? weaponsData : (weaponsData.weapons ? weaponsData.weapons : Object.values(weaponsData));
+        return { structures, weapons };
+      } catch (zipErr) {
+        throw new Error('Unsupported file type');
+      }
     }
-    throw new Error('Unsupported file type');
   }
 
   const uploadInput = document.getElementById('uploadInput');
