@@ -1,5 +1,14 @@
 import * as THREE from './three.module.js';
 
+function isWebGLAvailable(){
+  try{
+    const canvas = document.createElement('canvas');
+    return !!(window.WebGLRenderingContext && (canvas.getContext('webgl') || canvas.getContext('experimental-webgl')));
+  }catch(e){
+    return false;
+  }
+}
+
 function parsePieGeometry(text){
   const lines = text.split(/\r?\n/).map(l=>l.trim()).filter(l=>l && !l.startsWith('#'));
   const vertices = [];
@@ -49,6 +58,11 @@ async function loadPieGeometry(url){
 }
 
 async function render(canvas, url, options={}){
+  if(!isWebGLAvailable()){
+    console.error('WebGL not supported in this environment.');
+    canvas.replaceWith(document.createTextNode('WebGL not supported'));
+    return;
+  }
   const geometry = await loadPieGeometry(url);
   const dpr = window.devicePixelRatio || 1;
   const w = canvas.clientWidth || 96;
