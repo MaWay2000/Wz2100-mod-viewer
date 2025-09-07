@@ -41,10 +41,12 @@ tr:hover td{ background:#0e141c; }
 .changedCell .arrow{ opacity:.8; padding:0 4px; }
 .changedCell .newVal{ font-weight:600; }
 
-/* PIE thumbnail next to names */
-.pie-thumbs{ display:inline-flex; gap:6px; align-items:center; margin-left:10px; vertical-align:middle; }
-.pie-thumb{ width:70px; height:32px; border-radius:6px; background:#0a0f14; border:1px solid var(--border); display:inline-block; }
-.pie-thumb[aria-busy="true"]{ opacity:.6; }
+/* PIE preview popup */
+.pie-link{ cursor:pointer; color:var(--accent); }
+#piePopup{ position:fixed; top:50%; left:50%; width:200px; height:200px; margin:-100px 0 0 -100px; background:#0a0f14; border:1px solid var(--border); border-radius:8px; z-index:100; }
+#piePopup.hidden{ display:none; }
+#piePopup canvas{ width:100%; height:100%; display:block; }
+#piePopup button{ position:absolute; top:4px; right:4px; background:none; border:none; color:var(--fg); cursor:pointer; }
 </style>
 
 </head>
@@ -96,14 +98,30 @@ tr:hover td{ background:#0e141c; }
     </div>
   </div>
 </div>
+
+<div id="piePopup" class="hidden">
+  <button id="piePopupClose">&times;</button>
+  <canvas width="200" height="200"></canvas>
+</div>
 <script type="module">
   import "./js/three.module.js";
   import "./js/pie.js";
   import "./js/piePreview.js";
   import "./js/piePreview-init.js";
   import "./js/pie-loader.js";
-
-  const pieOverlay = null;
+  const piePopup = document.getElementById('piePopup');
+  const piePopupCanvas = piePopup.querySelector('canvas');
+  const piePopupClose = document.getElementById('piePopupClose');
+  piePopupClose.addEventListener('click', () => piePopup.classList.add('hidden'));
+  async function showPiePopup(pieFile){
+    piePopup.classList.remove('hidden');
+    piePopup.setAttribute('aria-busy','true');
+    try {
+      await renderPieToCanvas(piePopupCanvas, pieFile);
+    } finally {
+      piePopup.removeAttribute('aria-busy');
+    }
+  }
   async function resolvePieUrl(filename){
     filename = String(filename || '').toLowerCase();
     // Search order for PIE assets. Structures now live in /structs, while
@@ -270,6 +288,13 @@ tr:hover td{ background:#0e141c; }
   const showNewBtn = document.getElementById('showNewBtn');
   const showChangedBtn = document.getElementById('showChangedBtn');
 
+  tbody.addEventListener('click', (e) => {
+    const link = e.target.closest('.pie-link');
+    if (link && link.dataset.pie) {
+      showPiePopup(link.dataset.pie);
+    }
+  });
+
   const STORAGE_KEY = 'wzStatsCols_v3';
   let columnSelections = {}; try { const saved = localStorage.getItem(STORAGE_KEY); if (saved) columnSelections = JSON.parse(saved) || {}; } catch(e){}
   function saveSelections(){ try { localStorage.setItem(STORAGE_KEY, JSON.stringify(columnSelections)); } catch(e){} }
@@ -361,7 +386,6 @@ tr:hover td{ background:#0e141c; }
     if (sortCol) rows = rows.slice().sort((a,b) => compareVals(getRaw(a,sortCol), getRaw(b,sortCol)) * sortDir);
     tbody.innerHTML = '';
     const frag = document.createDocumentFragment();
-    const thumbs = []; // canvases to render
     rows.forEach(r => {
       const tr = document.createElement('tr');
       visibleCols.forEach(c => {
@@ -371,22 +395,15 @@ tr:hover td{ background:#0e141c; }
         const oldCandidate = getOldRaw(r, c);
         const isName = c === 'name';
         if (isName) {
-          // Build name + inline PIE thumbnail (first PIE found)
+          // Build name and attach PIE preview link (first PIE found)
           const pies = extractPieNames(r);
           const label = document.createElement('span');
           label.textContent = val;
           td.textContent = '';
           td.appendChild(label);
           if (pies.length){
-            const wrap = document.createElement('span');
-            wrap.className = 'pie-thumbs';
-            const canvas = document.createElement('canvas');
-            canvas.width = 140; canvas.height = 64;
-            canvas.className = 'pie-thumb'; canvas.setAttribute('aria-busy','true');
-            canvas.dataset.pie = pies[0];
-            wrap.appendChild(canvas);
-            td.appendChild(wrap);
-            thumbs.push(canvas);
+            label.classList.add('pie-link');
+            label.dataset.pie = pies[0];
           }
         } else if (diffMode() && r.__delta === 'changed' && oldCandidate !== undefined) {
           const oldVal = toCell(oldCandidate);
@@ -405,14 +422,6 @@ tr:hover td{ background:#0e141c; }
     });
     tbody.appendChild(frag);
     rowCount.textContent = String(rows.length);
-    // Render queued thumbnails
-    thumbs.forEach(async (cv) => {
-      try {
-        await renderPieToCanvas(cv, cv.dataset.pie);
-      } finally {
-        cv.removeAttribute('aria-busy');
-      }
-    });
   }
 
   function switchTab(name){
