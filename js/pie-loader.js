@@ -118,6 +118,13 @@ async function render(canvas, url, options={}){
     const g = await loadPieGeometry(u);
     geometries.push({ geometry: g, url: u });
   }
+  // Ensure base pieces are processed before any special (#weapon, #stack)
+  // components so alignment logic uses the correct reference geometry.
+  geometries.sort((a, b) => {
+    const aSpecial = /#(?:weapon|stack)\b/i.test(a.url);
+    const bSpecial = /#(?:weapon|stack)\b/i.test(b.url);
+    return aSpecial - bSpecial;
+  });
   const dpr = window.devicePixelRatio || 1;
   const w = canvas.clientWidth || 96;
   const h = canvas.clientHeight || 96;
