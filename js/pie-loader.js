@@ -130,11 +130,11 @@ async function render(canvas, url, options={}){
     const g = await loadGeometry(u);
     geometries.push({ geometry: g, url: u });
   }
-  // Ensure base pieces are processed before any special (#weapon, #stack)
+  // Ensure base pieces are processed before any special (#stack)
   // components so alignment logic uses the correct reference geometry.
   geometries.sort((a, b) => {
-    const aSpecial = /#(?:weapon|stack)\b/i.test(a.url);
-    const bSpecial = /#(?:weapon|stack)\b/i.test(b.url);
+    const aSpecial = /#stack\b/i.test(a.url);
+    const bSpecial = /#stack\b/i.test(b.url);
     return aSpecial - bSpecial;
   });
   const dpr = window.devicePixelRatio || 1;
@@ -150,11 +150,10 @@ async function render(canvas, url, options={}){
   const group = new THREE.Group();
   const box = new THREE.Box3();
   let baseBox = null;
-  // Track separate stack heights for weapons (#weapon) and generic stacks (#stack)
+  // Track stack height for generic stacks (#stack)
   let baseTop = null;      // top of the base structure
-  let weaponTop = null;    // top of the current weapon stack
-  let stackTop = null;     // top of the current generic stack
-  let baseWeaponConnector = null; // connector on the base for weapon alignment
+  let stackTop = null;     // top of the current stack
+  let baseConnector = null; // connector on the base for alignment
   for (const { geometry, url: geomUrl } of geometries){
     const materialOptions = { color:0xdddddd };
     if(geometry.userData.texture){
@@ -176,47 +175,16 @@ async function render(canvas, url, options={}){
       // subsequent pieces can be positioned relative to it
       baseBox = geometry.boundingBox.clone();
       baseTop = baseBox.max.y;
-      weaponTop = baseTop;
       stackTop = baseTop;
       if (geometry.userData && Array.isArray(geometry.userData.connectors) && geometry.userData.connectors.length) {
-        baseWeaponConnector = geometry.userData.connectors[0];
+        baseConnector = geometry.userData.connectors[0];
       }
-    } else if (geomUrl && /#weapon\b/i.test(geomUrl)) {
-      // Weapon components align their origin with the base connector when
-      // available, ignoring any connectors defined on the component itself.
-      // Fall back to stacking behavior if no base connector exists.
-      const baseY = baseTop != null ? baseTop : 0;
-      let tx = 0, ty = 0, tz = 0;
-      if (baseWeaponConnector) {
-        const [bcx = 0, bcy = baseY, bcz = 0] = baseWeaponConnector;
-        tx = bcx;
-        ty = bcy;
-        tz = bcz;
-      } else {
-        const refY = weaponTop != null ? weaponTop : baseY;
-        const offsetY = refY - geometry.boundingBox.min.y;
-        // Without a connector, keep the weapon aligned to the base origin
-        // and only stack vertically. Using bounding box centers for horizontal
-        // alignment caused guns with long barrels to slide off their mounts.
-        tx = 0;
-        ty = offsetY;
-        tz = 0;
-      }
-      geometry.translate(tx, ty, tz);
-      if (geometry.userData && Array.isArray(geometry.userData.connectors)) {
-        geometry.userData.connectors = geometry.userData.connectors.map(([x = 0, y = 0, z = 0, ...rest]) => [x + tx, y + ty, z + tz, ...rest]);
-      }
-      geometry.computeBoundingBox();
-      weaponTop = geometry.boundingBox.max.y;
     } else if (geomUrl && /#stack\b/i.test(geomUrl)) {
-      // Generic stack components (eg sensors) stack independently from weapons.
-      // When the base structure defines a connector, align to that connector
-      // instead of relying solely on bounding boxes. This mirrors how weapons
-      // are positioned and prevents pieces like radars from floating above
-      // smaller base models.
-      if (baseWeaponConnector) {
+      // Stack components (eg sensors) use connectors when available to align
+      // with the base structure and avoid floating above smaller models.
+      if (baseConnector) {
         const baseY = baseTop != null ? baseTop : 0;
-        const [bcx = 0, bcy = baseY, bcz = 0] = baseWeaponConnector;
+        const [bcx = 0, bcy = baseY, bcz = 0] = baseConnector;
         const offsetY = bcy - geometry.boundingBox.min.y;
         let offsetX = bcx;
         let offsetZ = bcz;
@@ -246,7 +214,6 @@ async function render(canvas, url, options={}){
       if (geometry.boundingBox && geometry.boundingBox.max) {
         const ymax = geometry.boundingBox.max.y;
         if (baseTop == null || ymax > baseTop) baseTop = ymax;
-        weaponTop = baseTop;
         stackTop = baseTop;
       }
     }
