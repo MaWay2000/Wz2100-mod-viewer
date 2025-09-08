@@ -413,15 +413,18 @@ tr:hover td{ background:#0e141c; }
     const weaponIds = row.weapons;
     const list = Array.isArray(weaponIds) ? weaponIds : (weaponIds !== undefined ? [weaponIds] : []);
 
-    const fields = ['baseModel','basemodel','structureModel','structuremodel','model','modelFile','weaponsModel','turretModel'];
+    const fields = ['baseModel','basemodel','structureModel','structuremodel','mountModel','model','barrelModel','turretModel','modelFile','weaponsModel'];
+    const weaponFieldSet = new Set(['mountModel','model','barrelModel','turretModel','modelFile','weaponsModel']);
+    const isWeaponRow = (row.weaponClass !== undefined) || (row.weaponSubClass !== undefined) || (row.weaponEffect !== undefined) || (row.damage !== undefined);
     for (const f of fields){
       if (row[f] === undefined) continue;
       const v = row[f];
-      if (Array.isArray(v)) v.forEach(s => add(s));
+      const prefix = (isWeaponRow && weaponFieldSet.has(f)) ? 'components/weapons/' : '';
+      if (Array.isArray(v)) v.forEach(s => add(s, prefix));
       else if (typeof v === 'string') {
-        try { const arr = JSON.parse(v); if (Array.isArray(arr)) arr.forEach(s => add(s)); else add(v); }
-        catch(e){ add(v); }
-      } else { add(v); }
+        try { const arr = JSON.parse(v); if (Array.isArray(arr)) arr.forEach(s => add(s, prefix)); else add(v, prefix); }
+        catch(e){ add(v, prefix); }
+      } else { add(v, prefix); }
     }
 
     list.forEach(id => {
