@@ -77,7 +77,9 @@ function parsePieGeometry(text){
       for(let j=0;j<count;j++){
         i++;
         const parts = lines[i].split(/\s+/).map(Number);
-        connectors.push(parts);
+        // PIE connector coordinates are stored as X Z Y; normalize to X Y Z
+        const [x = 0, z = 0, y = 0, ...rest] = parts;
+        connectors.push([x, y, z, ...rest]);
       }
     }
     i++;
@@ -205,7 +207,7 @@ async function render(canvas, url, options={}){
       }
       geometry.translate(tx, ty, tz);
       if (geometry.userData && Array.isArray(geometry.userData.connectors)) {
-        geometry.userData.connectors = geometry.userData.connectors.map(([x = 0, y = 0, z = 0]) => [x + tx, y + ty, z + tz]);
+        geometry.userData.connectors = geometry.userData.connectors.map(([x = 0, y = 0, z = 0, ...rest]) => [x + tx, y + ty, z + tz, ...rest]);
       }
       geometry.computeBoundingBox();
       weaponTop = geometry.boundingBox.max.y;
