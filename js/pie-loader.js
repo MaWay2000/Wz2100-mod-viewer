@@ -118,7 +118,13 @@ async function render(canvas, url, options={}){
 
   const urls = Array.isArray(url) ? url : [url];
   const geometries = [];
+  let baseRotation = 0;
   for (const u of urls){
+    if (typeof u === 'string' && u.startsWith('__rotate:')) {
+      const deg = parseFloat(u.split(':')[1]);
+      if (!isNaN(deg)) baseRotation = deg;
+      continue;
+    }
     // keep track of source url alongside loaded geometry so we can apply
     // special positioning rules based on where the model comes from
     const g = await loadGeometry(u);
@@ -239,11 +245,14 @@ async function render(canvas, url, options={}){
   const center = new THREE.Vector3();
   box.getSize(size);
   box.getCenter(center);
-  const radius = size.length() / 2 || 1;
-  const zoom = (typeof options.zoom === 'number') ? options.zoom : 1;
-  const s = 40 * zoom / radius;
-  group.scale.setScalar(s);
-  group.position.set(-center.x*s, -center.y*s, -center.z*s);
+    const radius = size.length() / 2 || 1;
+    const zoom = (typeof options.zoom === 'number') ? options.zoom : 1;
+    const s = 40 * zoom / radius;
+    group.scale.setScalar(s);
+    group.position.set(-center.x*s, -center.y*s, -center.z*s);
+    if (baseRotation) {
+      group.rotation.y = THREE.MathUtils.degToRad(baseRotation);
+    }
   scene.add(group);
   let frameId;
   function animate(){
