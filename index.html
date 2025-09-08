@@ -428,7 +428,8 @@ tr:hover td{ background:#0e141c; }
       }
     };
 
-    const isWeaponRow = (row.weaponClass !== undefined) ||
+    const isWeaponRow = (activeTab === 'weapons') ||
+                        (row.weaponClass !== undefined) ||
                         (row.weaponSubClass !== undefined) ||
                         (row.weaponEffect !== undefined) ||
                         (row.damage !== undefined);
