@@ -136,12 +136,13 @@ tr:hover td{ background:#0e141c; }
       const orig = String(filename || '');
       if (orig.startsWith('__')) return orig;
       const lower = orig.toLowerCase();
+      const isWeapon = /components\/weapons\//.test(lower);
       // PIE assets live directly under /pies; strip any path components.
       let name = lower.replace(/^.*[\\\/]/, '');
       const baseUrl = `pies/${name}`;
       try {
         const res = await fetch(baseUrl, { method: 'HEAD' });
-        if (res.ok) return baseUrl;
+        if (res.ok) return isWeapon ? `${baseUrl}#weapon` : baseUrl;
       } catch (_) {}
       // some stats reference PIE files with a leading zero that is
       // not present in the assets directory. Try stripping leading
@@ -151,10 +152,10 @@ tr:hover td{ background:#0e141c; }
         const altBase = `pies/${alt}`;
         try {
           const res2 = await fetch(altBase, { method: 'HEAD' });
-          if (res2.ok) return altBase;
+          if (res2.ok) return isWeapon ? `${altBase}#weapon` : altBase;
         } catch (_) {}
       }
-      return name;
+      return isWeapon ? `${name}#weapon` : name;
     }
   async function renderPieToCanvas(canvas, pieFile){
     const files = Array.isArray(pieFile) ? pieFile : [pieFile];
@@ -433,8 +434,11 @@ tr:hover td{ background:#0e141c; }
                         (row.damage !== undefined);
 
     if (isWeaponRow) {
-      // In the weapons table the mount model serves as the base structure.
-      // Treat additional pieces as weapon components relative to it.
+      // In the weapons table the mount model serves as the base structure,
+      // so it should not be treated as a weapon component. Otherwise it would
+      // be stacked using #weapon semantics and cause guns to float above the
+      // mount. By omitting the components/weapons/ prefix here we avoid the
+      // automatic "#weapon" flag when resolving PIE URLs.
       if (row.mountModel) handle(row.mountModel);
       ['model','barrelModel','turretModel','modelFile','weaponsModel'].forEach(f => {
         if (row[f] !== undefined) handle(row[f], 'components/weapons/');
@@ -527,7 +531,7 @@ tr:hover td{ background:#0e141c; }
           label.textContent = val;
           td.textContent = '';
           td.appendChild(label);
-          if (pies.length && activeTab !== 'weapons'){
+          if (pies.length){
             label.classList.add('pie-link');
             try { label.dataset.pie = JSON.stringify(pies); } catch(_) { label.dataset.pie = pies[0]; }
           }
