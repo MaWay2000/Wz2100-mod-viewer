@@ -434,10 +434,12 @@ tr:hover td{ background:#0e141c; }
                         (row.damage !== undefined);
 
     if (isWeaponRow) {
-      // In the weapons table the mount model should stack with the weapon so
-      // that both parts are layered exactly as in game. Prefixing with
+      // Use a neutral tower base so weapons preview the same way they mount on
+      // structures. The mount model then stacks with the weapon so that both
+      // parts are layered exactly as in game. Prefixing with
       // "components/weapons/" applies the same #weapon handling used for other
       // weapon components.
+      handle('znullturret.pie', 'components/structures/');
       if (row.mountModel) handle(row.mountModel, 'components/weapons/');
       ['model','barrelModel','turretModel','modelFile','weaponsModel'].forEach(f => {
         if (row[f] !== undefined) handle(row[f], 'components/weapons/');
