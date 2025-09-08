@@ -390,8 +390,9 @@ tr:hover td{ background:#0e141c; }
   }
   function getOldRaw(row, label){ if (!row || !row.__old) return undefined; const list = (columnLookup[label] || [label]); for (const key of list){ if (Object.prototype.hasOwnProperty.call(row.__old, key)) return row.__old[key]; } return row.__old[label]; }
 
-  // Extract pie filenames for previews. Towers with weapons get simple box
-  // placeholders stacked beneath the weapon model to visualize the structure.
+  // Extract pie filenames for previews. Structures return their own models
+  // and any linked weapon components or mounts. Weapon parts are left
+  // untagged so they stack naturally with the base model.
   function extractPieNames(row){
     if (!row || typeof row !== 'object') return [];
     const out = [];
@@ -427,9 +428,9 @@ tr:hover td{ background:#0e141c; }
       if (id == null) return;
       const w = weaponMap.get(String(id));
       if (!w) return;
-      if (w.mountModel) add(String(w.mountModel) + '#weapon', 'components/weapons/');
+      if (w.mountModel) add(String(w.mountModel), 'components/weapons/');
       ['model','barrelModel','turretModel'].forEach(f => {
-        if (w[f]) add(String(w[f]) + '#weapon', 'components/weapons/');
+        if (w[f]) add(String(w[f]), 'components/weapons/');
       });
     });
 
