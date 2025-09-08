@@ -122,8 +122,7 @@ tr:hover td{ background:#0e141c; }
       let files = pieFile;
       if (typeof files === 'string') { try { files = JSON.parse(files); } catch(_) { files = [files]; } }
       if (!Array.isArray(files)) files = [files];
-      const opts = { showConnectors: activeTab === 'weapons' };
-      await renderPieToCanvas(piePopupCanvas, files, opts);
+      await renderPieToCanvas(piePopupCanvas, files);
     } finally {
       piePopup.removeAttribute('aria-busy');
     }
@@ -158,20 +157,20 @@ tr:hover td{ background:#0e141c; }
       }
       return isWeapon ? `${name}#weapon` : name;
     }
-  async function renderPieToCanvas(canvas, pieFile, options = {}){
+  async function renderPieToCanvas(canvas, pieFile){
     const files = Array.isArray(pieFile) ? pieFile : [pieFile];
     const url = await resolvePieUrl(files);
     try {
       if (window.WZPIE && typeof WZPIE.renderToCanvas === 'function') {
-        await WZPIE.renderToCanvas(canvas, url, { background:'#0a0f14', zoom:0.5, showConnectors: options.showConnectors });
+        await WZPIE.renderToCanvas(canvas, url, { background:'#0a0f14', zoom:0.5 });
         return true;
       }
       if (window.renderPieModel && typeof window.renderPieModel === 'function') {
-        await window.renderPieModel(canvas, url, options);
+        await window.renderPieModel(canvas, url);
         return true;
       }
       if (window.PIELoader && typeof window.PIELoader.render === 'function') {
-        await window.PIELoader.render(canvas, url, { zoom:0.5, showConnectors: options.showConnectors });
+        await window.PIELoader.render(canvas, url, { zoom:0.5 });
         return true;
       }
     } catch(e){ console.error('PIE render error:', e); }
