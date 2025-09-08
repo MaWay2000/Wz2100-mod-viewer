@@ -161,18 +161,8 @@ tr:hover td{ background:#0e141c; }
     const files = Array.isArray(pieFile) ? pieFile : [pieFile];
     const url = await resolvePieUrl(files);
     try {
-      if (window.WZPIE && typeof WZPIE.renderToCanvas === 'function') {
-        await WZPIE.renderToCanvas(canvas, url, { background:'#0a0f14', zoom:0.5 });
-        return true;
-      }
-      if (window.renderPieModel && typeof window.renderPieModel === 'function') {
-        await window.renderPieModel(canvas, url);
-        return true;
-      }
-      if (window.PIELoader && typeof window.PIELoader.render === 'function') {
-        await window.PIELoader.render(canvas, url, { zoom:0.5 });
-        return true;
-      }
+      await WZPIE.renderToCanvas(canvas, url, { background:'#0a0f14', zoom:0.5 });
+      return true;
     } catch(e){ console.error('PIE render error:', e); }
     const ctx = canvas.getContext('2d');
     if (!ctx) return false;
