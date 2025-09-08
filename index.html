@@ -409,21 +409,8 @@ tr:hover td{ background:#0e141c; }
       }
     };
 
-    // If the structure references weapons, build a tower preview using
-    // placeholder boxes and the weapon's model on top.
     const weaponIds = row.weapons;
     const list = Array.isArray(weaponIds) ? weaponIds : (weaponIds !== undefined ? [weaponIds] : []);
-    if (list.length) {
-      out.push('__primaryBox');
-      out.push('__weaponBox#weapon');
-      list.forEach(id => {
-        if (id == null) return;
-        const w = weaponMap.get(String(id));
-        if (!w) return;
-        ['model','barrelModel','turretModel'].forEach(f => add(w[f], 'components/weapons/'));
-      });
-      return out;
-    }
 
     const fields = ['baseModel','basemodel','structureModel','structuremodel','model','modelFile','weaponsModel','turretModel'];
     for (const f of fields){
@@ -435,6 +422,17 @@ tr:hover td{ background:#0e141c; }
         catch(e){ add(v); }
       } else { add(v); }
     }
+
+    list.forEach(id => {
+      if (id == null) return;
+      const w = weaponMap.get(String(id));
+      if (!w) return;
+      if (w.mountModel) add(String(w.mountModel) + '#weapon', 'components/weapons/');
+      ['model','barrelModel','turretModel'].forEach(f => {
+        if (w[f]) add(String(w[f]) + '#weapon', 'components/weapons/');
+      });
+    });
+
     // include sensor models referenced by structures
     const sensorId = row.sensorID || row.sensorid;
     if (sensorId != null) {
