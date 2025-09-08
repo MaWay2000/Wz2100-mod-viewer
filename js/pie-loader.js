@@ -196,17 +196,21 @@ async function render(canvas, url, options={}){
         const refY = weaponTop != null ? weaponTop : baseY;
         const offsetY = refY - geometry.boundingBox.min.y;
         // Align horizontally with the base so weapons sit centered on their
-        // mount. When no connector is present, match the X position of the
-        // base's bounding box centre.
+        // mount. When no connector is present, match the X and Z position of
+        // the base's bounding box centre.
         let offsetX = 0;
+        let offsetZ = 0;
         if (baseBox && geometry.boundingBox) {
           const baseCenterX = (baseBox.min.x + baseBox.max.x) / 2;
+          const baseCenterZ = (baseBox.min.z + baseBox.max.z) / 2;
           const geomCenterX = (geometry.boundingBox.min.x + geometry.boundingBox.max.x) / 2;
+          const geomCenterZ = (geometry.boundingBox.min.z + geometry.boundingBox.max.z) / 2;
           offsetX = baseCenterX - geomCenterX;
+          offsetZ = baseCenterZ - geomCenterZ;
         }
         tx = offsetX;
         ty = offsetY;
-        tz = 0;
+        tz = offsetZ;
       }
       geometry.translate(tx, ty, tz);
       if (geometry.userData && Array.isArray(geometry.userData.connectors)) {
