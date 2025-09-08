@@ -195,10 +195,16 @@ async function render(canvas, url, options={}){
       } else {
         const refY = weaponTop != null ? weaponTop : baseY;
         const offsetY = refY - geometry.boundingBox.min.y;
-        // Without a connector, keep the weapon aligned to the base origin
-        // and only stack vertically. Using bounding box centers for horizontal
-        // alignment caused guns with long barrels to slide off their mounts.
-        tx = 0;
+        // Align horizontally with the base so weapons sit centered on their
+        // mount. When no connector is present, match the X position of the
+        // base's bounding box centre.
+        let offsetX = 0;
+        if (baseBox && geometry.boundingBox) {
+          const baseCenterX = (baseBox.min.x + baseBox.max.x) / 2;
+          const geomCenterX = (geometry.boundingBox.min.x + geometry.boundingBox.max.x) / 2;
+          offsetX = baseCenterX - geomCenterX;
+        }
+        tx = offsetX;
         ty = offsetY;
         tz = 0;
       }
