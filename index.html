@@ -443,6 +443,9 @@ tr:hover td{ background:#0e141c; }
       ['model','barrelModel','turretModel','modelFile','weaponsModel'].forEach(f => {
         if (row[f] !== undefined) handle(row[f], 'components/weapons/');
       });
+      // Apply default rotation if weapon stats specify one. This mirrors
+      // how structures rotate attached weapons.
+      if (row.rotate !== undefined) out.push(`__rotate:${row.rotate}`);
     } else {
       const fields = ['baseModel','basemodel','structureModel','structuremodel','mountModel','model','barrelModel','turretModel','modelFile','weaponsModel'];
       for (const f of fields) {
