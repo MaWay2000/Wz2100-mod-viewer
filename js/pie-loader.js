@@ -181,36 +181,33 @@ async function render(canvas, url, options={}){
       if (geometry.userData && Array.isArray(geometry.userData.connectors) && geometry.userData.connectors.length) {
         baseWeaponConnector = geometry.userData.connectors[0];
       }
-      } else if (geomUrl && /#weapon\b/i.test(geomUrl)) {
-        // Weapon components align their connector with the base connector when
-        // available. Fall back to stacking behavior if no base connector exists.
-        const baseY = baseTop != null ? baseTop : 0;
-        let tx = 0, ty = 0, tz = 0;
-        if (baseWeaponConnector) {
-          const [bcx = 0, bcy = baseY, bcz = 0] = baseWeaponConnector;
-          let wcx = 0, wcy = 0, wcz = 0;
-          if (geometry.userData && Array.isArray(geometry.userData.connectors) && geometry.userData.connectors.length) {
-            [wcx, wcy, wcz] = geometry.userData.connectors[0];
-          }
-          tx = bcx - wcx;
-          ty = bcy - wcy;
-          tz = bcz - wcz;
-        } else {
-          const refY = weaponTop != null ? weaponTop : baseY;
-          const offsetY = refY - geometry.boundingBox.min.y;
-          // Without a connector, keep the weapon aligned to the base origin
-          // and only stack vertically. Using bounding box centers for horizontal
-          // alignment caused guns with long barrels to slide off their mounts.
-          tx = 0;
-          ty = offsetY;
-          tz = 0;
-        }
-        geometry.translate(tx, ty, tz);
-        if (geometry.userData && Array.isArray(geometry.userData.connectors)) {
-          geometry.userData.connectors = geometry.userData.connectors.map(([x = 0, y = 0, z = 0, ...rest]) => [x + tx, y + ty, z + tz, ...rest]);
-        }
-        geometry.computeBoundingBox();
-        weaponTop = geometry.boundingBox.max.y;
+    } else if (geomUrl && /#weapon\b/i.test(geomUrl)) {
+      // Weapon components align their origin with the base connector when
+      // available, ignoring any connectors defined on the component itself.
+      // Fall back to stacking behavior if no base connector exists.
+      const baseY = baseTop != null ? baseTop : 0;
+      let tx = 0, ty = 0, tz = 0;
+      if (baseWeaponConnector) {
+        const [bcx = 0, bcy = baseY, bcz = 0] = baseWeaponConnector;
+        tx = bcx;
+        ty = bcy;
+        tz = bcz;
+      } else {
+        const refY = weaponTop != null ? weaponTop : baseY;
+        const offsetY = refY - geometry.boundingBox.min.y;
+        // Without a connector, keep the weapon aligned to the base origin
+        // and only stack vertically. Using bounding box centers for horizontal
+        // alignment caused guns with long barrels to slide off their mounts.
+        tx = 0;
+        ty = offsetY;
+        tz = 0;
+      }
+      geometry.translate(tx, ty, tz);
+      if (geometry.userData && Array.isArray(geometry.userData.connectors)) {
+        geometry.userData.connectors = geometry.userData.connectors.map(([x = 0, y = 0, z = 0, ...rest]) => [x + tx, y + ty, z + tz, ...rest]);
+      }
+      geometry.computeBoundingBox();
+      weaponTop = geometry.boundingBox.max.y;
     } else if (geomUrl && /#stack\b/i.test(geomUrl)) {
       // Generic stack components (eg sensors) stack independently from weapons.
       // When the base structure defines a connector, align to that connector
