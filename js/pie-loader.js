@@ -186,8 +186,22 @@ async function render(canvas, url, options={}){
         tz = bcz;
       } else {
         const refY = weaponTop != null ? weaponTop : baseY;
-        const offset = refY - geometry.boundingBox.min.y;
-        tx = 0; ty = offset; tz = 0;
+        const offsetY = refY - geometry.boundingBox.min.y;
+        // Align horizontally with the center of the base structure when no
+        // explicit connector is provided. This keeps mount models and guns
+        // positioned on top of off-center bases.
+        let offsetX = 0, offsetZ = 0;
+        if (baseBox && geometry.boundingBox) {
+          const baseCenterX = (baseBox.min.x + baseBox.max.x) / 2;
+          const baseCenterZ = (baseBox.min.z + baseBox.max.z) / 2;
+          const geomCenterX = (geometry.boundingBox.min.x + geometry.boundingBox.max.x) / 2;
+          const geomCenterZ = (geometry.boundingBox.min.z + geometry.boundingBox.max.z) / 2;
+          offsetX = baseCenterX - geomCenterX;
+          offsetZ = baseCenterZ - geomCenterZ;
+        }
+        tx = offsetX;
+        ty = offsetY;
+        tz = offsetZ;
       }
       geometry.translate(tx, ty, tz);
       if (geometry.userData && Array.isArray(geometry.userData.connectors)) {
