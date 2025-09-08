@@ -182,27 +182,40 @@ async function render(canvas, url, options={}){
         baseWeaponConnector = geometry.userData.connectors[0];
       }
     } else if (geomUrl && /#weapon\b/i.test(geomUrl)) {
-      // Weapon components align their origin with the base connector when
-      // available, ignoring any connectors defined on the component itself.
-      // Fall back to stacking behavior if no base connector exists.
+      // Weapon components align using connectors when available. If both the base
+      // and weapon define connectors, align the weapon's first connector to the
+      // base's first connector. If only the weapon defines a connector, align it
+      // to the top-centre of the base. Fall back to stacking behaviour when no
+      // connectors exist.
       const baseY = baseTop != null ? baseTop : 0;
+      const baseCenterX = baseBox ? (baseBox.min.x + baseBox.max.x) / 2 : 0;
+      const baseCenterZ = baseBox ? (baseBox.min.z + baseBox.max.z) / 2 : 0;
       let tx = 0, ty = 0, tz = 0;
-      if (baseWeaponConnector) {
-        const [bcx = 0, bcy = baseY, bcz = 0] = baseWeaponConnector;
+      const weaponConnector = geometry.userData && Array.isArray(geometry.userData.connectors) && geometry.userData.connectors.length ? geometry.userData.connectors[0] : null;
+      if (baseWeaponConnector && weaponConnector) {
+        const [bcx = baseCenterX, bcy = baseY, bcz = baseCenterZ] = baseWeaponConnector;
+        const [gcx = 0, gcy = 0, gcz = 0] = weaponConnector;
+        tx = bcx - gcx;
+        ty = bcy - gcy;
+        tz = bcz - gcz;
+      } else if (baseWeaponConnector) {
+        const [bcx = baseCenterX, bcy = baseY, bcz = baseCenterZ] = baseWeaponConnector;
         tx = bcx;
         ty = bcy;
         tz = bcz;
+      } else if (weaponConnector) {
+        const [gcx = 0, gcy = 0, gcz = 0] = weaponConnector;
+        tx = baseCenterX - gcx;
+        ty = baseY - gcy;
+        tz = baseCenterZ - gcz;
       } else {
         const refY = weaponTop != null ? weaponTop : baseY;
         const offsetY = refY - geometry.boundingBox.min.y;
-        // Align horizontally with the base so weapons sit centered on their
-        // mount. When no connector is present, match the X position of the
-        // base's bounding box centre.
         let offsetX = 0;
         if (baseBox && geometry.boundingBox) {
-          const baseCenterX = (baseBox.min.x + baseBox.max.x) / 2;
+          const baseCenterX2 = (baseBox.min.x + baseBox.max.x) / 2;
           const geomCenterX = (geometry.boundingBox.min.x + geometry.boundingBox.max.x) / 2;
-          offsetX = baseCenterX - geomCenterX;
+          offsetX = baseCenterX2 - geomCenterX;
         }
         tx = offsetX;
         ty = offsetY;
