@@ -171,8 +171,7 @@ async function render(canvas, url, options={}){
     const material = new THREE.MeshStandardMaterial(materialOptions);
     const mesh = new THREE.Mesh(geometry, material);
     geometry.computeBoundingBox();
-    const isBase = !baseBox;
-    if (isBase) {
+    if (!baseBox) {
       // first geometry acts as the base; remember its bounding box so
       // subsequent pieces can be positioned relative to it
       baseBox = geometry.boundingBox.clone();
@@ -256,7 +255,6 @@ async function render(canvas, url, options={}){
     // box, which is what we want here to encompass all geometry
     // bounding boxes.
     if (geometry.boundingBox) box.union(geometry.boundingBox);
-    if (options.hideBase && isBase) mesh.visible = false;
     group.add(mesh);
   }
   // center and scale group
