@@ -218,12 +218,38 @@ async function render(canvas, url, options={}){
       geometry.computeBoundingBox();
       weaponTop = geometry.boundingBox.max.y;
     } else if (geomUrl && /#stack\b/i.test(geomUrl)) {
-      // Generic stack components (eg sensors) stack independently from weapons
-      const refY = stackTop != null ? stackTop : baseTop;
-      const offset = refY - geometry.boundingBox.min.y;
-      geometry.translate(0, offset, 0);
-      geometry.computeBoundingBox();
-      stackTop = geometry.boundingBox.max.y;
+      // Generic stack components (eg sensors) stack independently from weapons.
+      // When the base structure defines a connector, align to that connector
+      // instead of relying solely on bounding boxes. This mirrors how weapons
+      // are positioned and prevents pieces like radars from floating above
+      // smaller base models.
+      if (baseWeaponConnector) {
+        const baseY = baseTop != null ? baseTop : 0;
+        const [bcx = 0, bcy = baseY, bcz = 0] = baseWeaponConnector;
+        const offsetY = bcy - geometry.boundingBox.min.y;
+        let offsetX = bcx;
+        let offsetZ = bcz;
+        if (baseBox && geometry.boundingBox) {
+          const baseCenterX = (baseBox.min.x + baseBox.max.x) / 2;
+          const baseCenterZ = (baseBox.min.z + baseBox.max.z) / 2;
+          const geomCenterX = (geometry.boundingBox.min.x + geometry.boundingBox.max.x) / 2;
+          const geomCenterZ = (geometry.boundingBox.min.z + geometry.boundingBox.max.z) / 2;
+          offsetX += baseCenterX - geomCenterX;
+          offsetZ += baseCenterZ - geomCenterZ;
+        }
+        geometry.translate(offsetX, offsetY, offsetZ);
+        if (geometry.userData && Array.isArray(geometry.userData.connectors)) {
+          geometry.userData.connectors = geometry.userData.connectors.map(([x = 0, y = 0, z = 0, ...rest]) => [x + offsetX, y + offsetY, z + offsetZ, ...rest]);
+        }
+        geometry.computeBoundingBox();
+        stackTop = geometry.boundingBox.max.y;
+      } else {
+        const refY = stackTop != null ? stackTop : baseTop;
+        const offset = refY - geometry.boundingBox.min.y;
+        geometry.translate(0, offset, 0);
+        geometry.computeBoundingBox();
+        stackTop = geometry.boundingBox.max.y;
+      }
     } else {
       // Part of the base structure; update base/top references accordingly
       if (geometry.boundingBox && geometry.boundingBox.max) {
