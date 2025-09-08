@@ -434,12 +434,11 @@ tr:hover td{ background:#0e141c; }
                         (row.damage !== undefined);
 
     if (isWeaponRow) {
-      // In the weapons table the mount model serves as the base structure,
-      // so it should not be treated as a weapon component. Otherwise it would
-      // be stacked using #weapon semantics and cause guns to float above the
-      // mount. By omitting the components/weapons/ prefix here we avoid the
-      // automatic "#weapon" flag when resolving PIE URLs.
-      if (row.mountModel) handle(row.mountModel);
+      // In the weapons table the mount model should stack with the weapon so
+      // that both parts are layered exactly as in game. Prefixing with
+      // "components/weapons/" applies the same #weapon handling used for other
+      // weapon components.
+      if (row.mountModel) handle(row.mountModel, 'components/weapons/');
       ['model','barrelModel','turretModel','modelFile','weaponsModel'].forEach(f => {
         if (row[f] !== undefined) handle(row[f], 'components/weapons/');
       });
