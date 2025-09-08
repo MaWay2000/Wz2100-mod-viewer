@@ -98,6 +98,23 @@ async function loadPieGeometry(url){
   return parsePieGeometry(text);
 }
 
+function createBoxGeometry(size){
+  const s = Array.isArray(size) ? size : [size, size, size];
+  const geo = new THREE.BoxGeometry(s[0], s[1], s[2]);
+  geo.computeBoundingBox();
+  return geo;
+}
+
+async function loadGeometry(url){
+  if (url === '__primaryBox') {
+    return createBoxGeometry([40, 30, 40]);
+  }
+  if (url === '__weaponBox#weapon' || url === '__weaponBox') {
+    return createBoxGeometry([20, 20, 20]);
+  }
+  return await loadPieGeometry(url);
+}
+
 async function render(canvas, url, options={}){
   if(!isWebGLAvailable()){
     console.error('WebGL not supported in this environment.');
@@ -115,7 +132,7 @@ async function render(canvas, url, options={}){
   for (const u of urls){
     // keep track of source url alongside loaded geometry so we can apply
     // special positioning rules based on where the model comes from
-    const g = await loadPieGeometry(u);
+    const g = await loadGeometry(u);
     geometries.push({ geometry: g, url: u });
   }
   // Ensure base pieces are processed before any special (#weapon, #stack)

@@ -134,6 +134,7 @@ tr:hover td{ background:#0e141c; }
         return out;
       }
       const orig = String(filename || '');
+      if (orig.startsWith('__')) return orig;
       const lower = orig.toLowerCase();
       const isWeapon = /components\/weapons\//.test(lower);
       // PIE assets live directly under /pies; strip any path components.
@@ -389,10 +390,10 @@ tr:hover td{ background:#0e141c; }
   }
   function getOldRaw(row, label){ if (!row || !row.__old) return undefined; const list = (columnLookup[label] || [label]); for (const key of list){ if (Object.prototype.hasOwnProperty.call(row.__old, key)) return row.__old[key]; } return row.__old[label]; }
 
-  // Extract pie filenames from common fields on a row and referenced weapons
+  // Extract pie filenames for previews. Towers with weapons get simple box
+  // placeholders stacked beneath the weapon model to visualize the structure.
   function extractPieNames(row){
     if (!row || typeof row !== 'object') return [];
-    const fields = ['baseModel','basemodel','structureModel','structuremodel','model','modelFile','weaponsModel','turretModel'];
     const out = [];
     const add = (s, prefix) => {
       if (!s) return;
@@ -407,6 +408,24 @@ tr:hover td{ background:#0e141c; }
         if (!out.includes(full)) out.push(full);
       }
     };
+
+    // If the structure references weapons, build a tower preview using
+    // placeholder boxes and the weapon's model on top.
+    const weaponIds = row.weapons;
+    const list = Array.isArray(weaponIds) ? weaponIds : (weaponIds !== undefined ? [weaponIds] : []);
+    if (list.length) {
+      out.push('__primaryBox');
+      out.push('__weaponBox#weapon');
+      list.forEach(id => {
+        if (id == null) return;
+        const w = weaponMap.get(String(id));
+        if (!w) return;
+        ['model','barrelModel','turretModel'].forEach(f => add(w[f], 'components/weapons/'));
+      });
+      return out;
+    }
+
+    const fields = ['baseModel','basemodel','structureModel','structuremodel','model','modelFile','weaponsModel','turretModel'];
     for (const f of fields){
       if (row[f] === undefined) continue;
       const v = row[f];
@@ -426,16 +445,6 @@ tr:hover td{ background:#0e141c; }
         });
       }
     }
-    // include weapon models referenced by structures
-    const weaponIds = row.weapons;
-    const list = Array.isArray(weaponIds) ? weaponIds : (weaponIds !== undefined ? [weaponIds] : []);
-    list.forEach(id => {
-      if (id == null) return;
-      const w = weaponMap.get(String(id));
-      if (!w) return;
-      // ensure base/mount models load before weapon model so weapons sit atop mounts
-      ['mountModel','baseModel','basemodel','model','barrelModel','turretModel'].forEach(f => add(w[f], 'components/weapons/'));
-    });
     return out;
   }
 
