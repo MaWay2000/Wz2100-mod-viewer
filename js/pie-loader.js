@@ -155,8 +155,6 @@ async function render(canvas, url, options={}){
   let weaponTop = null;    // top of the current weapon stack
   let stackTop = null;     // top of the current generic stack
   let baseWeaponConnector = null; // connector on the base for weapon alignment
-  const connectorMat = options.showConnectors ? new THREE.MeshBasicMaterial({ color: 0xff0000 }) : null;
-  const connectorGeom = options.showConnectors ? new THREE.SphereGeometry(1, 8, 8) : null;
   for (const { geometry, url: geomUrl } of geometries){
     const materialOptions = { color:0xdddddd };
     if(geometry.userData.texture){
@@ -241,13 +239,6 @@ async function render(canvas, url, options={}){
     // bounding boxes.
     if (geometry.boundingBox) box.union(geometry.boundingBox);
     group.add(mesh);
-    if (options.showConnectors && geometry.userData && Array.isArray(geometry.userData.connectors)) {
-      for (const [cx = 0, cy = 0, cz = 0] of geometry.userData.connectors) {
-        const marker = new THREE.Mesh(connectorGeom, connectorMat);
-        marker.position.set(cx, cy, cz);
-        group.add(marker);
-      }
-    }
   }
   // center and scale group
   const size = new THREE.Vector3();
