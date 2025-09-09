@@ -127,6 +127,7 @@ tr:hover td{ background:#0e141c; }
       piePopup.removeAttribute('aria-busy');
     }
   }
+    const _pieBlobCache = {};
     async function resolvePieUrl(filename){
       if (Array.isArray(filename)) {
         const out = [];
@@ -139,23 +140,33 @@ tr:hover td{ background:#0e141c; }
       const isWeapon = /components\/weapons\//.test(lower);
       // PIE assets live directly under /pies; strip any path components.
       let name = lower.replace(/^.*[\\\/]/, '');
-      const baseUrl = `pies/${name}`;
+      const hashIdx = name.indexOf('#');
+      const suffix = hashIdx >= 0 ? name.slice(hashIdx) : (isWeapon ? '#weapon' : '');
+      const baseName = hashIdx >= 0 ? name.slice(0, hashIdx) : name;
+      const store = (typeof window !== 'undefined' && window.BOOTSTRAP && window.BOOTSTRAP.pies) ? window.BOOTSTRAP.pies : null;
+      if (store && store[baseName]) {
+        if (!_pieBlobCache[baseName]) {
+          _pieBlobCache[baseName] = URL.createObjectURL(new Blob([store[baseName]], { type: 'text/plain' }));
+        }
+        return _pieBlobCache[baseName] + suffix;
+      }
+      const baseUrl = `pies/${baseName}`;
       try {
         const res = await fetch(baseUrl, { method: 'HEAD' });
-        if (res.ok) return isWeapon ? `${baseUrl}#weapon` : baseUrl;
+        if (res.ok) return baseUrl + suffix;
       } catch (_) {}
       // some stats reference PIE files with a leading zero that is
       // not present in the assets directory. Try stripping leading
       // zeroes and look for a matching file.
-      const alt = name.replace(/^0+/, '');
-      if (alt !== name) {
+      const alt = baseName.replace(/^0+/, '');
+      if (alt !== baseName) {
         const altBase = `pies/${alt}`;
         try {
           const res2 = await fetch(altBase, { method: 'HEAD' });
-          if (res2.ok) return isWeapon ? `${altBase}#weapon` : altBase;
+          if (res2.ok) return altBase + suffix;
         } catch (_) {}
       }
-      return isWeapon ? `${name}#weapon` : name;
+      return baseName + suffix;
     }
   async function renderPieToCanvas(canvas, pieFile){
     const files = Array.isArray(pieFile) ? pieFile : [pieFile];
@@ -191,7 +202,11 @@ tr:hover td{ background:#0e141c; }
   async function loadBootstrap(){
     const stored = localStorage.getItem(UPLOAD_KEY);
     if (stored){
-      try { return JSON.parse(stored); }
+      try {
+        const parsed = JSON.parse(stored);
+        if (!parsed.pies) parsed.pies = {};
+        return parsed;
+      }
       catch(e){ localStorage.removeItem(UPLOAD_KEY); }
     }
     const structures = await loadJSON("stats/structure.json");
@@ -203,6 +218,7 @@ tr:hover td{ background:#0e141c; }
       structures,
       weapons,
       sensors,
+      pies:{},
       files:{structures:"stats/structure.json", weapons:"stats/weapons.json", sensors:"stats/sensor.json"},
       baseline:{
         base:"stats",
@@ -214,6 +230,7 @@ tr:hover td{ background:#0e141c; }
     };
   }
   const BOOTSTRAP = await loadBootstrap();
+  window.BOOTSTRAP = BOOTSTRAP;
   const sourceBadge = document.getElementById('sourceBadge');
   if (sourceBadge && BOOTSTRAP && BOOTSTRAP.meta){
     const name = BOOTSTRAP.meta.filename ? ` ${BOOTSTRAP.meta.filename}` : ' ./stats';
@@ -652,24 +669,64 @@ tr:hover td{ background:#0e141c; }
     throw new Error('Missing '+filename+' in archive');
   }
 
+  async function extractZipPies(buffer){
+    const dv = new DataView(buffer);
+    let offset = 0;
+    const sig = 0x04034b50;
+    const pies = {};
+    while (offset + 30 < dv.byteLength && dv.getUint32(offset, true) === sig){
+      offset += 4;
+      offset += 2; // version
+      const flags = dv.getUint16(offset, true); offset += 2;
+      const compression = dv.getUint16(offset, true); offset += 2;
+      offset += 8; // times + crc32
+      const compSize = dv.getUint32(offset, true); offset += 4;
+      const uncompSize = dv.getUint32(offset, true); offset += 4;
+      const nameLen = dv.getUint16(offset, true); offset += 2;
+      const extraLen = dv.getUint16(offset, true); offset += 2;
+      const name = new TextDecoder().decode(new Uint8Array(buffer, offset, nameLen));
+      offset += nameLen + extraLen;
+      const data = buffer.slice(offset, offset + compSize);
+      offset += compSize;
+      if (/\.pie$/i.test(name)){
+        let text = null;
+        if (compression === 0){
+          text = new TextDecoder().decode(data);
+        } else if (compression === 8){
+          const ds = new DecompressionStream('deflate-raw');
+          const decompressed = await new Response(new Blob([data]).stream().pipeThrough(ds)).arrayBuffer();
+          text = new TextDecoder().decode(decompressed);
+        }
+        if (text !== null){
+          const base = name.split(/[/\\]/).pop().toLowerCase();
+          if (!pies[base]) pies[base] = text;
+        }
+      }
+    }
+    return pies;
+  }
+
   async function parseUploadedFile(f){
     const buf = await f.arrayBuffer();
     try {
       let text = new TextDecoder().decode(buf);
       if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
-      return JSON.parse(text);
+      const obj = JSON.parse(text);
+      if (!obj.pies) obj.pies = {};
+      return obj;
     } catch (e) {
       try {
         const structText = await extractZipText(buf, 'stats/structure.json').catch(()=>extractZipText(buf,'stats/structures.json'));
         const weaponText = await extractZipText(buf, 'stats/weapons.json');
         const sensorText = await extractZipText(buf, 'stats/sensor.json').catch(()=> '[]');
+        const pies = await extractZipPies(buf).catch(()=> ({}));
         const structuresData = JSON.parse(structText);
         const weaponsData = JSON.parse(weaponText);
         const sensorsData = JSON.parse(sensorText);
         const structures = Array.isArray(structuresData) ? structuresData : (structuresData.structures ? structuresData.structures : Object.values(structuresData));
         const weapons = Array.isArray(weaponsData) ? weaponsData : (weaponsData.weapons ? weaponsData.weapons : Object.values(weaponsData));
         const sensors = Array.isArray(sensorsData) ? sensorsData : (sensorsData.sensors ? sensorsData.sensors : Object.values(sensorsData));
-        return { structures, weapons, sensors };
+        return { structures, weapons, sensors, pies };
       } catch (zipErr) {
         throw new Error('Unsupported file type');
       }
@@ -692,6 +749,7 @@ tr:hover td{ background:#0e141c; }
           structures:data.structures || [],
           weapons:data.weapons || [],
           sensors:data.sensors || [],
+          pies:data.pies || {},
           files:{},
           baseline:{ base:'stats', structures:baseStructs, weapons:baseWeapons, sensors:baseSensors, files:{structures:'stats/structure.json', weapons:'stats/weapons.json', sensors:'stats/sensor.json'} }
         };
