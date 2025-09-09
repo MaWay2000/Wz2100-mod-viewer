@@ -740,9 +740,18 @@ tr:hover td{ background:#0e141c; }
       if (!f) return;
       try{
         const data = await parseUploadedFile(f);
-        const baseStructs = await loadJSON('stats/structure.json');
-        const baseWeapons = await loadJSON('stats/weapons.json');
-        const baseSensors = await loadJSON('stats/sensor.json');
+        let baseStructs = await loadJSON('stats/structure.json');
+        let baseWeapons = await loadJSON('stats/weapons.json');
+        let baseSensors = await loadJSON('stats/sensor.json');
+        if (!baseStructs.length && BOOTSTRAP && BOOTSTRAP.baseline && Array.isArray(BOOTSTRAP.baseline.structures)) {
+          baseStructs = BOOTSTRAP.baseline.structures;
+        }
+        if (!baseWeapons.length && BOOTSTRAP && BOOTSTRAP.baseline && Array.isArray(BOOTSTRAP.baseline.weapons)) {
+          baseWeapons = BOOTSTRAP.baseline.weapons;
+        }
+        if (!baseSensors.length && BOOTSTRAP && BOOTSTRAP.baseline && Array.isArray(BOOTSTRAP.baseline.sensors)) {
+          baseSensors = BOOTSTRAP.baseline.sensors;
+        }
         const store = {
           meta:{source:'upload', filename:f.name},
           base:'upload',
