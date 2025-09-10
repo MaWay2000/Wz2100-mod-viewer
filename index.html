@@ -61,6 +61,7 @@ tr:hover td{ background:#0e141c; }
   <span class="badge" id="sourceBadge">Source: local ./stats</span>
   <input type="file" id="uploadInput" style="display:none" />
   <label for="uploadInput" class="btn" id="uploadBtn">Upload</label>
+  <button class="btn" id="loadDummyBtn">Load dumby test</button>
   <span class="small" id="uploadHint" title="Windows: Documents\\Warzone 2100 4.5\\mods\\global | Linux: ~/.local/share/warzone2100-4.5/mods/global | macOS: ~/Library/Application Support/warzone2100-4.5/mods/global">Find MOD files in the game's mods/global folder</span>
 </header>
 
@@ -734,6 +735,33 @@ tr:hover td{ background:#0e141c; }
     }
   }
 
+  async function saveData(data, source, filename){
+    let baseStructs = await loadJSON('stats/structure.json');
+    let baseWeapons = await loadJSON('stats/weapons.json');
+    let baseSensors = await loadJSON('stats/sensor.json');
+    if (!baseStructs.length && BOOTSTRAP && BOOTSTRAP.baseline && Array.isArray(BOOTSTRAP.baseline.structures)) {
+      baseStructs = BOOTSTRAP.baseline.structures;
+    }
+    if (!baseWeapons.length && BOOTSTRAP && BOOTSTRAP.baseline && Array.isArray(BOOTSTRAP.baseline.weapons)) {
+      baseWeapons = BOOTSTRAP.baseline.weapons;
+    }
+    if (!baseSensors.length && BOOTSTRAP && BOOTSTRAP.baseline && Array.isArray(BOOTSTRAP.baseline.sensors)) {
+      baseSensors = BOOTSTRAP.baseline.sensors;
+    }
+    const store = {
+      meta:{source, filename},
+      base:source,
+      structures:data.structures || [],
+      weapons:data.weapons || [],
+      sensors:data.sensors || [],
+      pies:data.pies || {},
+      files:{},
+      baseline:{ base:'stats', structures:baseStructs, weapons:baseWeapons, sensors:baseSensors, files:{structures:'stats/structure.json', weapons:'stats/weapons.json', sensors:'stats/sensor.json'} }
+    };
+    localStorage.setItem(UPLOAD_KEY, JSON.stringify(store));
+    location.reload();
+  }
+
   const uploadInput = document.getElementById('uploadInput');
   if (uploadInput){
     uploadInput.addEventListener('change', async () => {
@@ -741,30 +769,23 @@ tr:hover td{ background:#0e141c; }
       if (!f) return;
       try{
         const data = await parseUploadedFile(f);
-        let baseStructs = await loadJSON('stats/structure.json');
-        let baseWeapons = await loadJSON('stats/weapons.json');
-        let baseSensors = await loadJSON('stats/sensor.json');
-        if (!baseStructs.length && BOOTSTRAP && BOOTSTRAP.baseline && Array.isArray(BOOTSTRAP.baseline.structures)) {
-          baseStructs = BOOTSTRAP.baseline.structures;
-        }
-        if (!baseWeapons.length && BOOTSTRAP && BOOTSTRAP.baseline && Array.isArray(BOOTSTRAP.baseline.weapons)) {
-          baseWeapons = BOOTSTRAP.baseline.weapons;
-        }
-        if (!baseSensors.length && BOOTSTRAP && BOOTSTRAP.baseline && Array.isArray(BOOTSTRAP.baseline.sensors)) {
-          baseSensors = BOOTSTRAP.baseline.sensors;
-        }
-        const store = {
-          meta:{source:'upload', filename:f.name},
-          base:'upload',
-          structures:data.structures || [],
-          weapons:data.weapons || [],
-          sensors:data.sensors || [],
-          pies:data.pies || {},
-          files:{},
-          baseline:{ base:'stats', structures:baseStructs, weapons:baseWeapons, sensors:baseSensors, files:{structures:'stats/structure.json', weapons:'stats/weapons.json', sensors:'stats/sensor.json'} }
-        };
-        localStorage.setItem(UPLOAD_KEY, JSON.stringify(store));
-        location.reload();
+        await saveData(data, 'upload', f.name);
+      }catch(e){
+        alert('Failed to load file: ' + e.message);
+      }
+    });
+  }
+
+  const dummyBtn = document.getElementById('loadDummyBtn');
+  if (dummyBtn){
+    dummyBtn.addEventListener('click', async () => {
+      try{
+        const res = await fetch('example');
+        if (!res.ok) throw new Error('HTTP '+res.status);
+        const blob = await res.blob();
+        const file = new File([blob], 'example');
+        const data = await parseUploadedFile(file);
+        await saveData(data, 'example', 'example');
       }catch(e){
         alert('Failed to load file: ' + e.message);
       }
