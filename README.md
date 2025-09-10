@@ -12,8 +12,8 @@ Open `index.html` in a modern browser to explore the data.
 
 ## Uploading mods
 
-Use the **Upload** button to load a mod's `.wz` or JSON stats file.
-Mod `.wz` files are stored in Warzone 2100's user directory:
+Use the **Upload** button to load a MOD or JSON stats file.
+MOD files are stored in Warzone 2100's user directory:
 
 - **Windows:** `Documents\\Warzone 2100 4.5\\mods\\global`
 - **Linux:** `~/.local/share/warzone2100-4.5/mods/global`
