@@ -48,6 +48,9 @@ tr:hover td{ background:#0e141c; }
 #researchPopup.hidden{ display:none; }
 #researchPopup button{ position:absolute; top:4px; right:4px; background:none; border:none; color:var(--fg); cursor:pointer; }
 .research-link{ cursor:pointer; color:var(--accent); }
+#researchPopup ul{ list-style:none; margin:0; padding-left:1em; }
+#researchPopup ul ul{ border-left:1px solid var(--border); margin-left:.6em; }
+#researchPopup summary{ cursor:pointer; }
 #piePopup{ position:fixed; top:50%; left:50%; width:400px; height:400px; margin:0; transform:translate(-50%,-50%); background:#0a0f14; border:1px solid var(--border); border-radius:8px; z-index:100; }
 #piePopup.hidden{ display:none; }
 #piePopup canvas{ width:100%; height:100%; display:block; }
@@ -145,25 +148,33 @@ tr:hover td{ background:#0e141c; }
     }
   }
   function getResearchName(id){ const r = researchMap.get(String(id)); return r ? (r.name || r.id || String(id)) : String(id); }
-  function getResearchPaths(id, seen = new Set()){
+  function buildResearchTree(id, seen = new Set()){
     id = String(id);
-    if (seen.has(id)) return [[id]];
-    seen.add(id);
+    const li = document.createElement('li');
+    const details = document.createElement('details');
+    if (seen.size === 0) details.open = true;
     const node = researchMap.get(id);
-    if (!node) return [[id]];
-    const prereqs = Array.isArray(node.requiredResearch) ? node.requiredResearch : (node.requiredResearch ? [node.requiredResearch] : []);
-    if (!prereqs.length) return [[id]];
-    let out = [];
-    prereqs.forEach(pr => {
-      const sub = getResearchPaths(pr, new Set(seen));
-      sub.forEach(p => out.push(p.concat(id)));
-    });
-    return out;
+    const summary = document.createElement('summary');
+    summary.textContent = getResearchName(id) + (node && node.researchPoints ? ` (${node.researchPoints})` : '');
+    details.appendChild(summary);
+    li.appendChild(details);
+    if (seen.has(id)) return li;
+    seen.add(id);
+    const prereqs = node && Array.isArray(node.requiredResearch)
+      ? node.requiredResearch
+      : (node && node.requiredResearch ? [node.requiredResearch] : []);
+    if (prereqs.length) {
+      const ul = document.createElement('ul');
+      prereqs.forEach(pr => ul.appendChild(buildResearchTree(pr, new Set(seen))));
+      details.appendChild(ul);
+    }
+    return li;
   }
   function showResearchPopup(id){
-    const paths = getResearchPaths(id);
-    const html = paths.map(p => p.map(getResearchName).join(' \u2192 ')).join('<br>');
-    researchPopupContent.innerHTML = html || 'No prerequisites';
+    researchPopupContent.innerHTML = '';
+    const tree = document.createElement('ul');
+    tree.appendChild(buildResearchTree(id));
+    researchPopupContent.appendChild(tree);
     researchPopup.classList.remove('hidden');
   }
     const _pieBlobCache = {};
