@@ -44,6 +44,10 @@ tr:hover td{ background:#0e141c; }
 
 /* PIE preview popup */
 .pie-link{ cursor:pointer; color:var(--accent); }
+#researchPopup{ position:fixed; top:50%; left:50%; max-width:80%; max-height:80%; padding:16px; transform:translate(-50%,-50%); background:#0a0f14; border:1px solid var(--border); border-radius:8px; z-index:100; overflow:auto; }
+#researchPopup.hidden{ display:none; }
+#researchPopup button{ position:absolute; top:4px; right:4px; background:none; border:none; color:var(--fg); cursor:pointer; }
+.research-link{ cursor:pointer; color:var(--accent); }
 #piePopup{ position:fixed; top:50%; left:50%; width:400px; height:400px; margin:0; transform:translate(-50%,-50%); background:#0a0f14; border:1px solid var(--border); border-radius:8px; z-index:100; }
 #piePopup.hidden{ display:none; }
 #piePopup canvas{ width:100%; height:100%; display:block; }
@@ -108,6 +112,10 @@ tr:hover td{ background:#0e141c; }
   <button id="piePopupClose">&times;</button>
   <canvas width="400" height="400"></canvas>
 </div>
+<div id="researchPopup" class="hidden">
+  <button id="researchPopupClose">&times;</button>
+  <div id="researchPopupContent"></div>
+</div>
 <script type="module">
   import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.171.0/build/three.module.js";
   window.THREE = THREE;
@@ -119,6 +127,10 @@ tr:hover td{ background:#0e141c; }
   const piePopupCanvas = piePopup.querySelector('canvas');
   const piePopupClose = document.getElementById('piePopupClose');
   piePopupClose.addEventListener('click', () => piePopup.classList.add('hidden'));
+  const researchPopup = document.getElementById('researchPopup');
+  const researchPopupContent = document.getElementById('researchPopupContent');
+  const researchPopupClose = document.getElementById('researchPopupClose');
+  if (researchPopupClose) researchPopupClose.addEventListener('click', () => researchPopup.classList.add('hidden'));
   async function showPiePopup(pieFile){
     piePopup.classList.remove('hidden');
     piePopup.setAttribute('aria-busy','true');
@@ -130,6 +142,28 @@ tr:hover td{ background:#0e141c; }
     } finally {
       piePopup.removeAttribute('aria-busy');
     }
+  }
+  function getResearchName(id){ const r = researchMap.get(String(id)); return r ? (r.name || r.id || String(id)) : String(id); }
+  function getResearchPaths(id, seen = new Set()){
+    id = String(id);
+    if (seen.has(id)) return [[id]];
+    seen.add(id);
+    const node = researchMap.get(id);
+    if (!node) return [[id]];
+    const prereqs = Array.isArray(node.requiredResearch) ? node.requiredResearch : (node.requiredResearch ? [node.requiredResearch] : []);
+    if (!prereqs.length) return [[id]];
+    let out = [];
+    prereqs.forEach(pr => {
+      const sub = getResearchPaths(pr, new Set(seen));
+      sub.forEach(p => out.push(p.concat(id)));
+    });
+    return out;
+  }
+  function showResearchPopup(id){
+    const paths = getResearchPaths(id);
+    const html = paths.map(p => p.map(getResearchName).join(' \u2192 ')).join('<br>');
+    researchPopupContent.innerHTML = html || 'No prerequisites';
+    researchPopup.classList.remove('hidden');
   }
     const _pieBlobCache = {};
     async function resolvePieUrl(filename){
@@ -329,6 +363,8 @@ tr:hover td{ background:#0e141c; }
   (tabs.weapons || []).forEach(w => { const id = (w && w.id !== undefined) ? String(w.id) : null; if (id) weaponMap.set(id, w); });
   const sensorMap = new Map();
   (normalizeRows(BOOTSTRAP.sensors, 'sensors') || []).forEach(s => { const id = (s && s.id !== undefined) ? String(s.id) : null; if (id) sensorMap.set(id, s); });
+  const researchMap = new Map();
+  (tabs.research || []).forEach(r => { const id = (r && r.id !== undefined) ? String(r.id) : null; if (id) researchMap.set(id, r); });
   const baseline = { structures: normalizeRows(BOOTSTRAP.baseline && BOOTSTRAP.baseline.structures, 'structures'), weapons: normalizeRows(BOOTSTRAP.baseline && BOOTSTRAP.baseline.weapons, 'weapons'), research: normalizeRows(BOOTSTRAP.baseline && BOOTSTRAP.baseline.research, 'research') };
 
   const baselineWeaponMap = new Map();
@@ -395,6 +431,11 @@ tr:hover td{ background:#0e141c; }
     const link = e.target.closest('.pie-link');
     if (link && link.dataset.pie) {
       showPiePopup(link.dataset.pie);
+      return;
+    }
+    const rlink = e.target.closest('.research-link');
+    if (rlink && rlink.dataset.id) {
+      showResearchPopup(rlink.dataset.id);
     }
   });
 
@@ -568,6 +609,10 @@ tr:hover td{ background:#0e141c; }
           label.textContent = val;
           td.textContent = '';
           td.appendChild(label);
+          if (activeTab === 'research') {
+            label.classList.add('research-link');
+            if (r.id !== undefined) label.dataset.id = r.id;
+          }
           if (pies.length){
             label.classList.add('pie-link');
             try { label.dataset.pie = JSON.stringify(pies); } catch(_) { label.dataset.pie = pies[0]; }
