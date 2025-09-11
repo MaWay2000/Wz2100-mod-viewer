@@ -428,12 +428,14 @@ tr:hover td{ background:#0e141c; }
   const showChangedBtn = document.getElementById('showChangedBtn');
 
   tbody.addEventListener('click', (e) => {
-    const link = e.target.closest('.pie-link');
+    const target = e.target instanceof Element ? e.target : null;
+    if (!target) return;
+    const link = target.closest('.pie-link');
     if (link && link.dataset.pie) {
       showPiePopup(link.dataset.pie);
       return;
     }
-    const rlink = e.target.closest('.research-link');
+    const rlink = target.closest('.research-link');
     if (rlink && rlink.dataset.id) {
       showResearchPopup(rlink.dataset.id);
     }
