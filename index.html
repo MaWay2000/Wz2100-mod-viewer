@@ -88,6 +88,7 @@ tr:hover td{ background:#0e141c; }
         <div class="tab" id="showNewBtn">Show new</div>
         <div class="tab" id="showChangedBtn">Show changes</div>
         <div class="kv small"><span>Rows:</span> <span id="rowCount">0</span></div>
+        <div class="kv small"><span>Research chain:</span> <span id="researchChainTime"></span></div>
       </div>
     </div>
 
@@ -401,6 +402,34 @@ tr:hover td{ background:#0e141c; }
   (tabs.research || []).forEach(r => { const id = (r && r.id !== undefined) ? String(r.id) : null; if (id) researchMap.set(id, r); });
   const baseline = { structures: normalizeRows(BOOTSTRAP.baseline && BOOTSTRAP.baseline.structures, 'structures'), weapons: normalizeRows(BOOTSTRAP.baseline && BOOTSTRAP.baseline.weapons, 'weapons'), research: normalizeRows(BOOTSTRAP.baseline && BOOTSTRAP.baseline.research, 'research') };
   addResearchTime(baseline.research);
+
+  function calcResearchChainTime(ids, baseSpeed, bonus){
+    let total = 0;
+    ids.forEach((id, idx) => {
+      const r = researchMap.get(id);
+      if (!r) return;
+      const cost = Number(r.researchPoints) || 0;
+      const speed = baseSpeed * (1 + bonus * idx);
+      total += cost / speed;
+    });
+    return total;
+  }
+
+  const researchSpeedIds = [
+    'R-Struc-Research-Upgrade01',
+    'R-Struc-Research-Upgrade02',
+    'R-Struc-Research-Upgrade03',
+    'R-Struc-Research-Upgrade04',
+    'R-Struc-Research-Upgrade05',
+    'R-Struc-Research-Upgrade06',
+    'R-Struc-Research-Upgrade07',
+    'R-Struc-Research-Upgrade08',
+    'R-Struc-Research-Upgrade09'
+  ];
+
+  const chainTime = calcResearchChainTime(researchSpeedIds, 21, 0.3);
+  const chainEl = document.getElementById('researchChainTime');
+  if (chainEl) chainEl.textContent = formatTime(chainTime);
 
   const baselineWeaponMap = new Map();
   (baseline.weapons || []).forEach(w => { const id = (w && w.id !== undefined) ? String(w.id) : null; if (id) baselineWeaponMap.set(id, w); });
