@@ -373,8 +373,6 @@ tr:hover td{ background:#0e141c; }
   const tabs = { structures: normalizeRows(BOOTSTRAP.structures, 'structures'), weapons: normalizeRows(BOOTSTRAP.weapons, 'weapons'), research: normalizeRows(BOOTSTRAP.research, 'research') };
   const weaponMap = new Map();
   (tabs.weapons || []).forEach(w => { const id = (w && w.id !== undefined) ? String(w.id) : null; if (id) weaponMap.set(id, w); });
-  const structureMap = new Map();
-  (tabs.structures || []).forEach(s => { const id = (s && s.id !== undefined) ? String(s.id) : null; if (id) structureMap.set(id, s); });
   const sensorMap = new Map();
   (normalizeRows(BOOTSTRAP.sensors, 'sensors') || []).forEach(s => { const id = (s && s.id !== undefined) ? String(s.id) : null; if (id) sensorMap.set(id, s); });
   (tabs.research || []).forEach(r => { const id = (r && r.id !== undefined) ? String(r.id) : null; if (id) researchMap.set(id, r); });
@@ -484,7 +482,7 @@ tr:hover td{ background:#0e141c; }
   // Extract pie filenames for previews. Structures return their own models
   // and any linked weapon components or mounts. Weapon parts are left
   // untagged so they stack naturally with the base model.
-  function extractPieNames(row, kind = activeTab){
+  function extractPieNames(row){
     if (!row || typeof row !== 'object') return [];
     const out = [];
     const add = (s, prefix) => {
@@ -519,7 +517,7 @@ tr:hover td{ background:#0e141c; }
       }
     };
 
-    const isWeaponRow = (kind === 'weapons') ||
+    const isWeaponRow = (activeTab === 'weapons') ||
                         (row.weaponClass !== undefined) ||
                         (row.weaponSubClass !== undefined) ||
                         (row.weaponEffect !== undefined) ||
@@ -619,17 +617,7 @@ tr:hover td{ background:#0e141c; }
         const isName = c === 'name';
         if (isName) {
           // Build name and attach PIE preview link (first PIE found)
-          let pies = extractPieNames(r);
-          if (activeTab === 'research' && !pies.length) {
-            const sid = r.statID != null ? String(r.statID) : (r.statid != null ? String(r.statid) : null);
-            if (sid) {
-              if (structureMap.has(sid)) {
-                pies = extractPieNames(structureMap.get(sid), 'structures');
-              } else if (weaponMap.has(sid)) {
-                pies = extractPieNames(weaponMap.get(sid), 'weapons').filter(p => !/znullturret\.pie$/i.test(p));
-              }
-            }
-          }
+          const pies = extractPieNames(r);
           const label = document.createElement('span');
           label.textContent = val;
           td.textContent = '';
