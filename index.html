@@ -131,6 +131,7 @@ tr:hover td{ background:#0e141c; }
   const researchPopupContent = document.getElementById('researchPopupContent');
   const researchPopupClose = document.getElementById('researchPopupClose');
   if (researchPopupClose) researchPopupClose.addEventListener('click', () => researchPopup.classList.add('hidden'));
+  const researchMap = new Map();
   async function showPiePopup(pieFile){
     piePopup.classList.remove('hidden');
     piePopup.setAttribute('aria-busy','true');
@@ -363,7 +364,6 @@ tr:hover td{ background:#0e141c; }
   (tabs.weapons || []).forEach(w => { const id = (w && w.id !== undefined) ? String(w.id) : null; if (id) weaponMap.set(id, w); });
   const sensorMap = new Map();
   (normalizeRows(BOOTSTRAP.sensors, 'sensors') || []).forEach(s => { const id = (s && s.id !== undefined) ? String(s.id) : null; if (id) sensorMap.set(id, s); });
-  const researchMap = new Map();
   (tabs.research || []).forEach(r => { const id = (r && r.id !== undefined) ? String(r.id) : null; if (id) researchMap.set(id, r); });
   const baseline = { structures: normalizeRows(BOOTSTRAP.baseline && BOOTSTRAP.baseline.structures, 'structures'), weapons: normalizeRows(BOOTSTRAP.baseline && BOOTSTRAP.baseline.weapons, 'weapons'), research: normalizeRows(BOOTSTRAP.baseline && BOOTSTRAP.baseline.research, 'research') };
 
