@@ -148,6 +148,15 @@ tr:hover td{ background:#0e141c; }
     }
   }
   function getResearchName(id){ const r = researchMap.get(String(id)); return r ? (r.name || r.id || String(id)) : String(id); }
+  function formatTime(seconds){
+    if (seconds === undefined || seconds === null || isNaN(seconds)) return '';
+    seconds = Math.round(Number(seconds));
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    if (h > 0) return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+    return String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+  }
   function buildResearchTree(id, seen = new Set()){
     id = String(id);
     const li = document.createElement('li');
@@ -322,16 +331,6 @@ tr:hover td{ background:#0e141c; }
   const compareVals = (a, b) => { const an = isNumber(a), bn = isNumber(b); if (an && bn) return Number(a)-Number(b); a = String(a).toLowerCase(); b = String(b).toLowerCase(); return a<b?-1:a>b?1:0; };
   const PRETTY_LABELS = { buildpoints:'Build time', buildpower:'Price', damage:'DMG', hitpoints:'HP', longrange:'Range', weaponclass:'Type', time:'Time', researchpower:'Price' };
   const pretty = (k) => PRETTY_LABELS[k] || k;
-
-  function formatTime(seconds){
-    if (seconds === undefined || seconds === null || isNaN(seconds)) return '';
-    seconds = Math.round(Number(seconds));
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = seconds % 60;
-    if (h > 0) return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
-    return String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
-  }
 
   function isPlainObject(o){ return o && typeof o === 'object' && !Array.isArray(o); }
   function deepSort(v){ if (Array.isArray(v)) return v.map(deepSort); if (isPlainObject(v)) { const o={}; for (const k of Object.keys(v).sort()) o[k]=deepSort(v[k]); return o; } return v; }
