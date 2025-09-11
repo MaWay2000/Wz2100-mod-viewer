@@ -164,7 +164,11 @@ tr:hover td{ background:#0e141c; }
     if (seen.size === 0) details.open = true;
     const node = researchMap.get(id);
     const summary = document.createElement('summary');
-    summary.textContent = getResearchName(id) + (node && node.time ? ` (${formatTime(node.time)})` : '');
+    if (node && node.time12 !== undefined && node.time54 !== undefined) {
+      summary.textContent = `${getResearchName(id)} (${formatTime(node.time54)} - ${formatTime(node.time12)})`;
+    } else {
+      summary.textContent = getResearchName(id);
+    }
     details.appendChild(summary);
     li.appendChild(details);
     if (seen.has(id)) return li;
@@ -329,7 +333,7 @@ tr:hover td{ background:#0e141c; }
   const isNumber = (v) => typeof v === 'number' || (typeof v === 'string' && v.trim() !== '' && !isNaN(Number(v)));
   const toCell = (v) => (v===null||v===undefined) ? '' : (typeof v === 'object' ? JSON.stringify(v) : String(v));
   const compareVals = (a, b) => { const an = isNumber(a), bn = isNumber(b); if (an && bn) return Number(a)-Number(b); a = String(a).toLowerCase(); b = String(b).toLowerCase(); return a<b?-1:a>b?1:0; };
-  const PRETTY_LABELS = { buildpoints:'Build time', buildpower:'Price', damage:'DMG', hitpoints:'HP', longrange:'Range', weaponclass:'Type', time:'Time', researchpower:'Price' };
+  const PRETTY_LABELS = { buildpoints:'Build time', buildpower:'Price', damage:'DMG', hitpoints:'HP', longrange:'Range', weaponclass:'Type', time12:'Time (12/s)', time54:'Time (54/s)', researchpower:'Price' };
   const pretty = (k) => PRETTY_LABELS[k] || k;
 
   function isPlainObject(o){ return o && typeof o === 'object' && !Array.isArray(o); }
@@ -383,8 +387,8 @@ tr:hover td{ background:#0e141c; }
     if (!Array.isArray(rows)) return;
     rows.forEach(r => {
       const pts = Number(r.researchPoints) || 0;
-      const pow = Number(r.researchPower) || 0;
-      r.time = pow > 0 ? pts / pow : 0;
+      r.time12 = pts / 12;
+      r.time54 = pts / 54;
     });
   }
 
@@ -429,7 +433,7 @@ tr:hover td{ background:#0e141c; }
   const preferCols = {
     structures: ['id','name','type','buildPoints','weaponBuildPoints','totalBuildPoints','buildPower','weaponBuildPower','totalBuildPower','hitpoints','armour','thermal','strength','weapons','longrange','damage'],
     weapons: ['id','name','Damage','Range','ReloadTime','Class','model','baseModel'],
-    research: ['id','name','time','researchPower','requiredResearch','resultComponents','results','statID']
+    research: ['id','name','time12','time54','researchPower','requiredResearch','resultComponents','results','statID']
   };
 
   let activeTab = 'structures';
@@ -489,7 +493,7 @@ tr:hover td{ background:#0e141c; }
   }
 
   const USER_DEFAULTS_KEY = 'wzStatsUserDefaultCols_v1'; let userDefaultCols = {}; try { const u = localStorage.getItem(USER_DEFAULTS_KEY); if (u) userDefaultCols = JSON.parse(u) || {}; } catch(e){}
-  const defaultCols = { structures: ['name','type','buildpoints','weaponbuildpoints','totalbuildpoints','hitpoints','armour','thermal','strength','damage','longrange','buildpower','weaponbuildpower','totalbuildpower'], weapons: ['name','buildpoints','buildpower','damage','hitpoints','longrange','reloadtime','weaponclass'], research: ['name','time','researchpower','requiredresearch','results','resultcomponents','statid'] };
+  const defaultCols = { structures: ['name','type','buildpoints','weaponbuildpoints','totalbuildpoints','hitpoints','armour','thermal','strength','damage','longrange','buildpower','weaponbuildpower','totalbuildpower'], weapons: ['name','buildpoints','buildpower','damage','hitpoints','longrange','reloadtime','weaponclass'], research: ['name','time12','time54','researchpower','requiredresearch','results','resultcomponents','statid'] };
   function getDefaultCols(){ const all = currentAllCols(); const user = userDefaultCols[activeTab]; const wanted = (Array.isArray(user) && user.length ? user : (defaultCols[activeTab] || all)); return wanted.filter(c => all.includes(c)); }
 
   function getRaw(row, label){
@@ -632,7 +636,8 @@ tr:hover td{ background:#0e141c; }
       visibleCols.forEach(c => {
         const td = document.createElement('td');
         const valRaw = getRaw(r, c);
-        const val = c === 'time' ? formatTime(valRaw) : toCell(valRaw);
+        const isTimeCol = c === 'time12' || c === 'time54';
+        const val = isTimeCol ? formatTime(valRaw) : toCell(valRaw);
         const oldCandidate = getOldRaw(r, c);
         const isName = c === 'name';
         if (isName) {
@@ -651,7 +656,7 @@ tr:hover td{ background:#0e141c; }
             try { label.dataset.pie = JSON.stringify(pies); } catch(_) { label.dataset.pie = pies[0]; }
           }
         } else if (diffMode() && r.__delta === 'changed' && oldCandidate !== undefined) {
-          const oldVal = c === 'time' ? formatTime(oldCandidate) : toCell(oldCandidate);
+          const oldVal = isTimeCol ? formatTime(oldCandidate) : toCell(oldCandidate);
           td.classList.add('changedCell');
           td.innerHTML = '<span class="oldVal">' + escapeHtml(oldVal) + '</span>' +
                          '<span class="arrow">→</span>' +
