@@ -62,6 +62,7 @@ tr:hover td{ background:#0e141c; }
   <input type="file" id="uploadInput" style="display:none" />
   <label for="uploadInput" class="btn" id="uploadBtn">Upload</label>
   <button class="btn" id="loadDummyBtn">Load dumby test</button>
+  <span class="small hidden" id="dummyStatus"></span>
   <span class="small" id="uploadHint" title="Windows: Documents\\Warzone 2100 4.5\\mods\\global | Linux: ~/.local/share/warzone2100-4.5/mods/global | macOS: ~/Library/Application Support/warzone2100-4.5/mods/global">Find MOD files in the game's mods/global folder</span>
 </header>
 
@@ -243,13 +244,31 @@ tr:hover td{ background:#0e141c; }
     sourceBadge.textContent = `Source: ${BOOTSTRAP.meta.source}${name}`;
   }
   const uploadBtn = document.getElementById('uploadBtn');
-  if (uploadBtn && BOOTSTRAP && BOOTSTRAP.meta && BOOTSTRAP.meta.source === 'upload'){
-    uploadBtn.textContent = 'Reset';
-    uploadBtn.removeAttribute('for');
-    uploadBtn.addEventListener('click', () => {
-      localStorage.removeItem(UPLOAD_KEY);
-      location.reload();
-    });
+  const dummyBtn = document.getElementById('loadDummyBtn');
+  const dummyStatus = document.getElementById('dummyStatus');
+  if (BOOTSTRAP && BOOTSTRAP.meta){
+    if (BOOTSTRAP.meta.source === 'upload' && uploadBtn){
+      uploadBtn.textContent = 'Reset';
+      uploadBtn.removeAttribute('for');
+      uploadBtn.addEventListener('click', () => {
+        localStorage.removeItem(UPLOAD_KEY);
+        location.reload();
+      });
+    }
+    if (BOOTSTRAP.meta.source === 'example'){
+      if (uploadBtn) uploadBtn.classList.add('hidden');
+      if (dummyBtn){
+        dummyBtn.textContent = 'Unload';
+        dummyBtn.addEventListener('click', () => {
+          localStorage.removeItem(UPLOAD_KEY);
+          location.reload();
+        });
+      }
+      if (dummyStatus){
+        dummyStatus.textContent = 'Loaded Dumby test';
+        dummyStatus.classList.remove('hidden');
+      }
+    }
   }
   function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;').replace(/'/g,'&#39;'); }
   const isNumber = (v) => typeof v === 'number' || (typeof v === 'string' && v.trim() !== '' && !isNaN(Number(v)));
@@ -791,8 +810,7 @@ tr:hover td{ background:#0e141c; }
     });
   }
 
-  const dummyBtn = document.getElementById('loadDummyBtn');
-  if (dummyBtn){
+  if (dummyBtn && (!BOOTSTRAP || !BOOTSTRAP.meta || BOOTSTRAP.meta.source !== 'example')){
     dummyBtn.addEventListener('click', async () => {
       try{
         const res = await fetch('example');
