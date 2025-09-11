@@ -158,14 +158,32 @@ tr:hover td{ background:#0e141c; }
     if (h > 0) return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
     return String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
   }
+  function calcTotalResearchTime(id, seen = new Set()){
+    id = String(id);
+    if (seen.has(id)) return { time12:0, time54:0 };
+    seen.add(id);
+    const node = researchMap.get(id);
+    let t12 = (node && node.time12) || 0;
+    let t54 = (node && node.time54) || 0;
+    const prereqs = node && Array.isArray(node.requiredResearch)
+      ? node.requiredResearch
+      : (node && node.requiredResearch ? [node.requiredResearch] : []);
+    prereqs.forEach(pr => {
+      const t = calcTotalResearchTime(pr, seen);
+      t12 += t.time12;
+      t54 += t.time54;
+    });
+    return { time12:t12, time54:t54 };
+  }
   function buildResearchTree(id, seen = new Set()){
     id = String(id);
     const li = document.createElement('li');
     const details = document.createElement('details');
     const node = researchMap.get(id);
     const summary = document.createElement('summary');
-    if (node && node.time12 !== undefined && node.time54 !== undefined) {
-      summary.textContent = `${getResearchName(id)} (${formatTime(node.time54)} - ${formatTime(node.time12)})`;
+    const total = calcTotalResearchTime(id);
+    if (total.time12 || total.time54) {
+      summary.textContent = `${getResearchName(id)} (${formatTime(total.time54)} - ${formatTime(total.time12)})`;
     } else {
       summary.textContent = getResearchName(id);
     }
