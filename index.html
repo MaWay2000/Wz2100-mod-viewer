@@ -433,6 +433,11 @@ tr:hover td{ background:#0e141c; }
   (tabs.research || []).forEach(r => { const id = (r && r.id !== undefined) ? String(r.id) : null; if (id) researchMap.set(id, r); });
   const baseline = { structures: normalizeRows(BOOTSTRAP.baseline && BOOTSTRAP.baseline.structures, 'structures'), weapons: normalizeRows(BOOTSTRAP.baseline && BOOTSTRAP.baseline.weapons, 'weapons'), research: normalizeRows(BOOTSTRAP.baseline && BOOTSTRAP.baseline.research, 'research') };
   addResearchTime(baseline.research);
+  // Ensure baseline research is available for dependency lookups
+  (baseline.research || []).forEach(r => {
+    const id = (r && r.id !== undefined) ? String(r.id) : null;
+    if (id && !researchMap.has(id)) researchMap.set(id, r);
+  });
 
   function calcResearchChainTime(ids, baseSpeed, bonus){
     let total = 0;
