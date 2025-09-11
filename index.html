@@ -354,7 +354,18 @@ tr:hover td{ background:#0e141c; }
   const isNumber = (v) => typeof v === 'number' || (typeof v === 'string' && v.trim() !== '' && !isNaN(Number(v)));
   const toCell = (v) => (v===null||v===undefined) ? '' : (typeof v === 'object' ? JSON.stringify(v) : String(v));
   const compareVals = (a, b) => { const an = isNumber(a), bn = isNumber(b); if (an && bn) return Number(a)-Number(b); a = String(a).toLowerCase(); b = String(b).toLowerCase(); return a<b?-1:a>b?1:0; };
-  const PRETTY_LABELS = { buildpoints:'Build time', buildpower:'Price', damage:'DMG', hitpoints:'HP', longrange:'Range', weaponclass:'Type', time12:'Time (12/s)', time54:'Time (54/s)', researchpower:'Price' };
+  const PRETTY_LABELS = {
+    buildpoints:'Build time',
+    buildpower:'Price',
+    damage:'DMG',
+    hitpoints:'HP',
+    longrange:'Range',
+    weaponclass:'Type',
+    time12:'Time (12/s)',
+    time54:'Time (54/s)',
+    researchpower:'Price',
+    requiredresearch:'Requires'
+  };
   const pretty = (k) => PRETTY_LABELS[k] || k;
 
   function isPlainObject(o){ return o && typeof o === 'object' && !Array.isArray(o); }
@@ -686,6 +697,7 @@ tr:hover td{ background:#0e141c; }
         const td = document.createElement('td');
         const valRaw = getRaw(r, c);
         const isTimeCol = c === 'time12' || c === 'time54';
+        const isReqCol = c === 'requiredresearch';
         const val = isTimeCol ? formatTime(valRaw) : toCell(valRaw);
         const oldCandidate = getOldRaw(r, c);
         const isName = c === 'name';
@@ -704,6 +716,18 @@ tr:hover td{ background:#0e141c; }
             label.classList.add('pie-link');
             try { label.dataset.pie = JSON.stringify(pies); } catch(_) { label.dataset.pie = pies[0]; }
           }
+        } else if (isReqCol) {
+          const ids = Array.isArray(valRaw) ? valRaw : (valRaw ? [valRaw] : []);
+          td.textContent = '';
+          ids.forEach((id, idx) => {
+            if (idx) td.appendChild(document.createTextNode(', '));
+            const span = document.createElement('span');
+            span.textContent = getResearchName(id);
+            span.classList.add('research-link');
+            span.dataset.id = id;
+            td.appendChild(span);
+          });
+          td.title = ids.join(', ');
         } else if (diffMode() && r.__delta === 'changed' && oldCandidate !== undefined) {
           const oldVal = isTimeCol ? formatTime(oldCandidate) : toCell(oldCandidate);
           td.classList.add('changedCell');
