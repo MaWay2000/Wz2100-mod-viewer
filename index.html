@@ -162,7 +162,6 @@ tr:hover td{ background:#0e141c; }
     id = String(id);
     const li = document.createElement('li');
     const details = document.createElement('details');
-    if (seen.size === 0) details.open = true;
     const node = researchMap.get(id);
     const summary = document.createElement('summary');
     if (node && node.time12 !== undefined && node.time54 !== undefined) {
@@ -189,6 +188,8 @@ tr:hover td{ background:#0e141c; }
     const tree = document.createElement('ul');
     tree.appendChild(buildResearchTree(id));
     researchPopupContent.appendChild(tree);
+    // expand all nodes so the full research path is visible by default
+    researchPopupContent.querySelectorAll('details').forEach(d => d.open = true);
     researchPopup.classList.remove('hidden');
   }
     const _pieBlobCache = {};
