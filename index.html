@@ -183,7 +183,8 @@ tr:hover td{ background:#0e141c; }
     const summary = document.createElement('summary');
     const total = calcTotalResearchTime(id);
     if (total.time12 || total.time54) {
-      summary.textContent = `${getResearchName(id)} (${formatTime(total.time54)} - ${formatTime(total.time12)})`;
+      const time = total.time54 || total.time12;
+      summary.textContent = `${getResearchName(id)} (${formatTime(time)})`;
     } else {
       summary.textContent = getResearchName(id);
     }
