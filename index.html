@@ -136,6 +136,7 @@ tr:hover td{ background:#0e141c; }
   const researchPopupClose = document.getElementById('researchPopupClose');
   if (researchPopupClose) researchPopupClose.addEventListener('click', () => researchPopup.classList.add('hidden'));
   const researchMap = new Map();
+  const componentResearchMap = new Map();
   async function showPiePopup(pieFile){
     piePopup.classList.remove('hidden');
     piePopup.setAttribute('aria-busy','true');
@@ -158,6 +159,20 @@ tr:hover td{ background:#0e141c; }
     if (h > 0) return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
     return String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
   }
+  function getPrereqs(id){
+    const node = researchMap.get(String(id));
+    const out = node && Array.isArray(node.requiredResearch)
+      ? [...node.requiredResearch]
+      : (node && node.requiredResearch ? [node.requiredResearch] : []);
+    const comps = node && Array.isArray(node.redComponents)
+      ? node.redComponents
+      : (node && node.redComponents ? [node.redComponents] : []);
+    comps.forEach(c => {
+      const pr = componentResearchMap.get(String(c));
+      if (pr) out.push(pr);
+    });
+    return out;
+  }
   function calcTotalResearchTime(id, seen = new Set()){
     id = String(id);
     if (seen.has(id)) return { time12:0, time54:0 };
@@ -165,9 +180,7 @@ tr:hover td{ background:#0e141c; }
     const node = researchMap.get(id);
     let t12 = (node && node.time12) || 0;
     let t54 = (node && node.time54) || 0;
-    const prereqs = node && Array.isArray(node.requiredResearch)
-      ? node.requiredResearch
-      : (node && node.requiredResearch ? [node.requiredResearch] : []);
+    const prereqs = getPrereqs(id);
     prereqs.forEach(pr => {
       const t = calcTotalResearchTime(pr, seen);
       t12 += t.time12;
@@ -192,9 +205,7 @@ tr:hover td{ background:#0e141c; }
     li.appendChild(details);
     if (seen.has(id)) return li;
     seen.add(id);
-    const prereqs = node && Array.isArray(node.requiredResearch)
-      ? node.requiredResearch
-      : (node && node.requiredResearch ? [node.requiredResearch] : []);
+    const prereqs = getPrereqs(id);
     if (prereqs.length) {
       const ul = document.createElement('ul');
       prereqs.forEach(pr => ul.appendChild(buildResearchTree(pr, new Set(seen))));
@@ -437,6 +448,16 @@ tr:hover td{ background:#0e141c; }
   (baseline.research || []).forEach(r => {
     const id = (r && r.id !== undefined) ? String(r.id) : null;
     if (id && !researchMap.has(id)) researchMap.set(id, r);
+  });
+
+  researchMap.forEach((r, id) => {
+    const comps = Array.isArray(r.resultComponents)
+      ? r.resultComponents
+      : (r.resultComponents ? [r.resultComponents] : []);
+    comps.forEach(c => {
+      const key = String(c);
+      if (!componentResearchMap.has(key)) componentResearchMap.set(key, id);
+    });
   });
 
   function calcResearchChainTime(ids, baseSpeed, bonus){
