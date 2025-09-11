@@ -71,6 +71,7 @@ tr:hover td{ background:#0e141c; }
       <div class="tabbar">
         <div class="tab active" data-tab="structures">Structures</div>
         <div class="tab" data-tab="weapons">Weapons</div>
+        <div class="tab" data-tab="research">Research</div>
       </div>
       <div class="controls">
         <input type="text" id="searchInput" placeholder="Search…" />
@@ -214,20 +215,23 @@ tr:hover td{ background:#0e141c; }
     const structures = await loadJSON("stats/structure.json");
     const weapons = await loadJSON("stats/weapons.json");
     const sensors = await loadJSON("stats/sensor.json");
+    const research = await loadJSON("stats/research.json");
     return {
       meta:{source:"local", filename:null},
       base:"stats",
       structures,
       weapons,
       sensors,
+      research,
       pies:{},
-      files:{structures:"stats/structure.json", weapons:"stats/weapons.json", sensors:"stats/sensor.json"},
+      files:{structures:"stats/structure.json", weapons:"stats/weapons.json", sensors:"stats/sensor.json", research:"stats/research.json"},
       baseline:{
         base:"stats",
         structures,
         weapons,
         sensors,
-        files:{structures:"stats/structure.json", weapons:"stats/weapons.json", sensors:"stats/sensor.json"}
+        research,
+        files:{structures:"stats/structure.json", weapons:"stats/weapons.json", sensors:"stats/sensor.json", research:"stats/research.json"}
       }
     };
   }
@@ -282,7 +286,9 @@ tr:hover td{ background:#0e141c; }
       ? ['structures','structure','STRUCTURES','STRUCTURE','StructureStats','structs']
       : kind === 'weapons'
         ? ['weapons','weampons','weapon','WEAPONS','WEAPON','WeaponStats','weaps']
-        : ['sensors','sensor','SENSORS','SENSOR','SensorStats'];
+        : kind === 'research'
+          ? ['research','researches','RESEARCH','RESEARCHES','ResearchStats','topics']
+          : ['sensors','sensor','SENSORS','SENSOR','SensorStats'];
     for (const k of candidates) if (Object.prototype.hasOwnProperty.call(data, k)) return data[k];
     return data;
   }
@@ -299,12 +305,12 @@ tr:hover td{ background:#0e141c; }
   function unionKeys(rows){ if (!Array.isArray(rows)) return []; const set = new Set(); rows.forEach(r => { if (r && typeof r === 'object') Object.keys(r).forEach(k => set.add(k)); }); return Array.from(set); }
   function pickPrefer(keys, preferred){ const set = new Set(keys); const out = []; (preferred||[]).forEach(k => { if (set.has(k)) { out.push(k); set.delete(k); } }); return out.concat(Array.from(set).sort()); }
 
-  const tabs = { structures: normalizeRows(BOOTSTRAP.structures, 'structures'), weapons: normalizeRows(BOOTSTRAP.weapons, 'weapons') };
+  const tabs = { structures: normalizeRows(BOOTSTRAP.structures, 'structures'), weapons: normalizeRows(BOOTSTRAP.weapons, 'weapons'), research: normalizeRows(BOOTSTRAP.research, 'research') };
   const weaponMap = new Map();
   (tabs.weapons || []).forEach(w => { const id = (w && w.id !== undefined) ? String(w.id) : null; if (id) weaponMap.set(id, w); });
   const sensorMap = new Map();
   (normalizeRows(BOOTSTRAP.sensors, 'sensors') || []).forEach(s => { const id = (s && s.id !== undefined) ? String(s.id) : null; if (id) sensorMap.set(id, s); });
-  const baseline = { structures: normalizeRows(BOOTSTRAP.baseline && BOOTSTRAP.baseline.structures, 'structures'), weapons: normalizeRows(BOOTSTRAP.baseline && BOOTSTRAP.baseline.weapons, 'weapons') };
+  const baseline = { structures: normalizeRows(BOOTSTRAP.baseline && BOOTSTRAP.baseline.structures, 'structures'), weapons: normalizeRows(BOOTSTRAP.baseline && BOOTSTRAP.baseline.weapons, 'weapons'), research: normalizeRows(BOOTSTRAP.baseline && BOOTSTRAP.baseline.research, 'research') };
 
   const baselineWeaponMap = new Map();
   (baseline.weapons || []).forEach(w => { const id = (w && w.id !== undefined) ? String(w.id) : null; if (id) baselineWeaponMap.set(id, w); });
@@ -332,11 +338,12 @@ tr:hover td{ background:#0e141c; }
   augmentStructureTotals(tabs.structures, weaponMap);
   augmentStructureTotals(baseline.structures, baselineWeaponMap);
 
-  const diffs = { structures: diffRows(tabs.structures, baseline.structures), weapons: diffRows(tabs.weapons, baseline.weapons) };
+  const diffs = { structures: diffRows(tabs.structures, baseline.structures), weapons: diffRows(tabs.weapons, baseline.weapons), research: diffRows(tabs.research, baseline.research) };
 
   const preferCols = {
     structures: ['id','name','type','buildPoints','weaponBuildPoints','totalBuildPoints','buildPower','weaponBuildPower','totalBuildPower','hitpoints','armour','thermal','strength','weapons','longrange','damage'],
-    weapons: ['id','name','Damage','Range','ReloadTime','Class','model','baseModel']
+    weapons: ['id','name','Damage','Range','ReloadTime','Class','model','baseModel'],
+    research: ['id','name','researchPoints','researchPower','requiredResearch','resultComponents','results','statID']
   };
 
   let activeTab = 'structures';
@@ -389,7 +396,7 @@ tr:hover td{ background:#0e141c; }
   }
 
   const USER_DEFAULTS_KEY = 'wzStatsUserDefaultCols_v1'; let userDefaultCols = {}; try { const u = localStorage.getItem(USER_DEFAULTS_KEY); if (u) userDefaultCols = JSON.parse(u) || {}; } catch(e){}
-  const defaultCols = { structures: ['name','type','buildpoints','weaponbuildpoints','totalbuildpoints','hitpoints','armour','thermal','strength','damage','longrange','buildpower','weaponbuildpower','totalbuildpower'], weapons: ['name','buildpoints','buildpower','damage','hitpoints','longrange','reloadtime','weaponclass'] };
+  const defaultCols = { structures: ['name','type','buildpoints','weaponbuildpoints','totalbuildpoints','hitpoints','armour','thermal','strength','damage','longrange','buildpower','weaponbuildpower','totalbuildpower'], weapons: ['name','buildpoints','buildpower','damage','hitpoints','longrange','reloadtime','weaponclass'], research: ['name','researchpoints','researchpower','requiredresearch','results','resultcomponents','statid'] };
   function getDefaultCols(){ const all = currentAllCols(); const user = userDefaultCols[activeTab]; const wanted = (Array.isArray(user) && user.length ? user : (defaultCols[activeTab] || all)); return wanted.filter(c => all.includes(c)); }
 
   function getRaw(row, label){
@@ -631,7 +638,7 @@ tr:hover td{ background:#0e141c; }
   showNewBtn && showNewBtn.addEventListener('click', () => { if (!showNew) { showNew=true; showChanged=false; } else { showNew=false; } refreshToggles(); buildCols(); renderHeader(); renderBody(); });
   showChangedBtn && showChangedBtn.addEventListener('click', () => { if (!showChanged) { showChanged=true; showNew=false; } else { showChanged=false; } refreshToggles(); buildCols(); renderHeader(); renderBody(); });
 
-  if (BOOTSTRAP && BOOTSTRAP.meta && BOOTSTRAP.meta.source === 'upload' && (baseline.structures.length || baseline.weapons.length)) { showNew = true; showChanged = false; }
+  if (BOOTSTRAP && BOOTSTRAP.meta && BOOTSTRAP.meta.source === 'upload' && (baseline.structures.length || baseline.weapons.length || baseline.research.length)) { showNew = true; showChanged = false; }
   refreshToggles();
 
   document.querySelectorAll('.tabbar .tab').forEach(el => el.addEventListener('click', () => switchTab(el.dataset.tab)));
@@ -721,14 +728,17 @@ tr:hover td{ background:#0e141c; }
         const structText = await extractZipText(buf, 'stats/structure.json').catch(()=>extractZipText(buf,'stats/structures.json'));
         const weaponText = await extractZipText(buf, 'stats/weapons.json');
         const sensorText = await extractZipText(buf, 'stats/sensor.json').catch(()=> '[]');
+        const researchText = await extractZipText(buf, 'stats/research.json').catch(()=> '[]');
         const pies = await extractZipPies(buf).catch(()=> ({}));
         const structuresData = JSON.parse(structText);
         const weaponsData = JSON.parse(weaponText);
         const sensorsData = JSON.parse(sensorText);
+        const researchData = JSON.parse(researchText);
         const structures = Array.isArray(structuresData) ? structuresData : (structuresData.structures ? structuresData.structures : Object.values(structuresData));
         const weapons = Array.isArray(weaponsData) ? weaponsData : (weaponsData.weapons ? weaponsData.weapons : Object.values(weaponsData));
         const sensors = Array.isArray(sensorsData) ? sensorsData : (sensorsData.sensors ? sensorsData.sensors : Object.values(sensorsData));
-        return { structures, weapons, sensors, pies };
+        const research = Array.isArray(researchData) ? researchData : (researchData.research ? researchData.research : Object.values(researchData));
+        return { structures, weapons, sensors, research, pies };
       } catch (zipErr) {
         throw new Error('Unsupported file type');
       }
@@ -739,6 +749,7 @@ tr:hover td{ background:#0e141c; }
     let baseStructs = await loadJSON('stats/structure.json');
     let baseWeapons = await loadJSON('stats/weapons.json');
     let baseSensors = await loadJSON('stats/sensor.json');
+    let baseResearch = await loadJSON('stats/research.json');
     if (!baseStructs.length && BOOTSTRAP && BOOTSTRAP.baseline && Array.isArray(BOOTSTRAP.baseline.structures)) {
       baseStructs = BOOTSTRAP.baseline.structures;
     }
@@ -748,15 +759,19 @@ tr:hover td{ background:#0e141c; }
     if (!baseSensors.length && BOOTSTRAP && BOOTSTRAP.baseline && Array.isArray(BOOTSTRAP.baseline.sensors)) {
       baseSensors = BOOTSTRAP.baseline.sensors;
     }
+    if (!baseResearch.length && BOOTSTRAP && BOOTSTRAP.baseline && Array.isArray(BOOTSTRAP.baseline.research)) {
+      baseResearch = BOOTSTRAP.baseline.research;
+    }
     const store = {
       meta:{source, filename},
       base:source,
       structures:data.structures || [],
       weapons:data.weapons || [],
       sensors:data.sensors || [],
+      research:data.research || [],
       pies:data.pies || {},
       files:{},
-      baseline:{ base:'stats', structures:baseStructs, weapons:baseWeapons, sensors:baseSensors, files:{structures:'stats/structure.json', weapons:'stats/weapons.json', sensors:'stats/sensor.json'} }
+      baseline:{ base:'stats', structures:baseStructs, weapons:baseWeapons, sensors:baseSensors, research:baseResearch, files:{structures:'stats/structure.json', weapons:'stats/weapons.json', sensors:'stats/sensor.json', research:'stats/research.json'} }
     };
     localStorage.setItem(UPLOAD_KEY, JSON.stringify(store));
     location.reload();
