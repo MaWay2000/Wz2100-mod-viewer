@@ -171,7 +171,7 @@ tr:hover td{ background:#0e141c; }
       const pr = componentResearchMap.get(String(c));
       if (pr) out.push(pr);
     });
-    return out;
+    return Array.from(new Set(out));
   }
   function calcTotalResearchTime(id, seen = new Set()){
     id = String(id);
@@ -208,18 +208,27 @@ tr:hover td{ background:#0e141c; }
     const prereqs = getPrereqs(id);
     if (prereqs.length) {
       const ul = document.createElement('ul');
-      prereqs.forEach(pr => ul.appendChild(buildResearchTree(pr, new Set(seen))));
+      prereqs.forEach(pr => ul.appendChild(buildResearchTree(pr, seen)));
       details.appendChild(ul);
     }
     return li;
+  }
+  function openDetailsUpToDepth(root, maxDepth = 3){
+    root.querySelectorAll('details').forEach(d => {
+      let depth = 0;
+      for (let p = d.parentElement; p; p = p.parentElement){
+        if (p.tagName === 'DETAILS') depth++;
+      }
+      if (depth < maxDepth) d.open = true;
+    });
   }
   function showResearchPopup(id){
     researchPopupContent.innerHTML = '';
     const tree = document.createElement('ul');
     tree.appendChild(buildResearchTree(id));
     researchPopupContent.appendChild(tree);
-    // expand all nodes so the full research path is visible by default
-    researchPopupContent.querySelectorAll('details').forEach(d => d.open = true);
+    // expand nodes up to a limited depth so the research path isn't overly long
+    openDetailsUpToDepth(researchPopupContent, 3);
     researchPopup.classList.remove('hidden');
   }
     const _pieBlobCache = {};
